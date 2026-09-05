@@ -1,0 +1,166 @@
+import { View, Text, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { colors, spacing, radius } from '../../constants/theme';
+import { openDirections } from '../../lib/maps';
+import { TextField } from '../TextField';
+import type { CheckoutGroup, DeliveryAddressDraft } from '../../types/checkout';
+
+type Props = {
+  group: CheckoutGroup;
+  deliveryAddress: DeliveryAddressDraft | null;
+  promoCodeInput: string;
+  onChangePromoCodeInput: (value: string) => void;
+  onApplyPromo: () => void;
+  applyingPromo: boolean;
+};
+
+export function CheckoutFarmSection({
+  group,
+  deliveryAddress,
+  promoCodeInput,
+  onChangePromoCodeInput,
+  onApplyPromo,
+  applyingPromo,
+}: Props) {
+  const pickupAddressLine = [group.address_street, group.address_city, group.address_state, group.address_zip]
+    .filter(Boolean)
+    .join(', ');
+  const deliveryAddressLine = deliveryAddress
+    ? [deliveryAddress.street, deliveryAddress.city, deliveryAddress.state, deliveryAddress.zip].filter(Boolean).join(', ')
+    : '';
+
+  const handleDirections = () => {
+    if (group.latitude !== null && group.longitude !== null) {
+      openDirections(group.latitude, group.longitude, group.farm_name);
+    }
+  };
+
+  return (
+    <View style={styles.container}>
+      <Text style={styles.farmName}>{group.farm_name}</Text>
+
+      <View style={styles.fulfillmentRow}>
+        <MaterialIcons
+          name={group.fulfillment_method === 'pickup' ? 'storefront' : 'local-shipping'}
+          size={15}
+          color={colors.textMuted}
+        />
+        <Text style={styles.fulfillmentText} numberOfLines={2}>
+          {group.fulfillment_method === 'pickup'
+            ? `Pickup at ${pickupAddressLine || group.farm_name}`
+            : `Delivery to ${deliveryAddressLine || 'your address'}`}
+        </Text>
+        {group.fulfillment_method === 'pickup' && group.latitude !== null ? (
+          <Pressable onPress={handleDirections} hitSlop={8}>
+            <Text style={styles.directionsLink}>Directions</Text>
+          </Pressable>
+        ) : null}
+      </View>
+
+      <View style={styles.items}>
+        {group.items.map((item) => (
+          <View key={item.product_id} style={styles.itemRow}>
+            <Text style={styles.itemName} numberOfLines={1}>
+              {item.quantity} × {item.name}
+            </Text>
+            <Text style={styles.itemTotal}>${item.line_total.toFixed(2)}</Text>
+          </View>
+        ))}
+      </View>
+
+      <View style={styles.promoRow}>
+        <View style={styles.promoInput}>
+          <TextField
+            placeholder="Promo code for this farm"
+            value={promoCodeInput}
+            onChangeText={onChangePromoCodeInput}
+            autoCapitalize="characters"
+          />
+        </View>
+        <Pressable style={styles.promoButton} onPress={onApplyPromo} disabled={applyingPromo || !promoCodeInput.trim()}>
+          {applyingPromo ? (
+            <ActivityIndicator size="small" color={colors.white} />
+          ) : (
+            <Text style={styles.promoButtonText}>Apply</Text>
+          )}
+        </Pressable>
+      </View>
+      {group.promo_error ? <Text style={styles.promoError}>{group.promo_error}</Text> : null}
+      {group.promo_code && group.promo_discount > 0 ? (
+        <Text style={styles.promoSuccess}>&ldquo;{group.promo_code}&rdquo; applied</Text>
+      ) : null}
+
+      <View style={styles.breakdown}>
+        <BreakdownLine label="Subtotal" value={group.subtotal} />
+        {group.promo_discount > 0 ? <BreakdownLine label="Promo discount" value={-group.promo_discount} highlight /> : null}
+        {group.fulfillment_method === 'delivery' ? <BreakdownLine label="Delivery fee" value={group.delivery_fee} /> : null}
+        <BreakdownLine label="Service fee" value={group.service_fee} />
+        <BreakdownLine label="Tax" value={group.tax} />
+        <View style={styles.divider} />
+        <BreakdownLine label="Farm total" value={group.farm_total} bold />
+      </View>
+    </View>
+  );
+}
+
+function BreakdownLine({ label, value, bold, highlight }: { label: string; value: number; bold?: boolean; highlight?: boolean }) {
+  const sign = value < 0 ? '-' : '';
+  return (
+    <View style={styles.breakdownRow}>
+      <Text style={[styles.breakdownLabel, bold && styles.breakdownLabelBold]}>{label}</Text>
+      <Text
+        style={[
+          styles.breakdownValue,
+          bold && styles.breakdownValueBold,
+          highlight && styles.breakdownValueHighlight,
+        ]}
+      >
+        {sign}${Math.abs(value).toFixed(2)}
+      </Text>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.md,
+    padding: spacing.md,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  farmName: { fontSize: 16, fontWeight: '700', color: colors.text, marginBottom: spacing.xs },
+  fulfillmentRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: spacing.sm },
+  fulfillmentText: { flex: 1, fontSize: 12, color: colors.textMuted },
+  directionsLink: { fontSize: 12, fontWeight: '700', color: colors.primary },
+  items: { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: spacing.xs },
+  itemRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },
+  itemName: { flex: 1, fontSize: 13, color: colors.text, marginRight: spacing.sm },
+  itemTotal: { fontSize: 13, fontWeight: '600', color: colors.text },
+  promoRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.xs, marginTop: spacing.sm },
+  promoInput: { flex: 1 },
+  promoButton: {
+    backgroundColor: colors.primary,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.md,
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  promoButtonText: { color: colors.white, fontSize: 13, fontWeight: '700' },
+  promoError: { fontSize: 12, color: colors.danger, marginTop: -spacing.sm, marginBottom: spacing.sm },
+  promoSuccess: { fontSize: 12, color: colors.primaryDark, fontWeight: '600', marginTop: -spacing.sm, marginBottom: spacing.sm },
+  breakdown: { marginTop: spacing.xs },
+  breakdownRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3 },
+  breakdownLabel: { fontSize: 13, color: colors.textMuted },
+  breakdownLabelBold: { fontSize: 14, fontWeight: '700', color: colors.text },
+  breakdownValue: { fontSize: 13, color: colors.text },
+  breakdownValueBold: { fontSize: 15, fontWeight: '700', color: colors.text },
+  breakdownValueHighlight: { color: colors.danger },
+  divider: { height: 1, backgroundColor: colors.border, marginVertical: spacing.xs },
+});
