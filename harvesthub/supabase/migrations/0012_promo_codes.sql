@@ -31,6 +31,7 @@ create index if not exists promo_codes_farmer_id_idx on promo_codes (farmer_id);
 
 alter table promo_codes enable row level security;
 
+drop policy if exists "farmers manage their own promo codes" on promo_codes;
 create policy "farmers manage their own promo codes"
   on promo_codes for all
   using (auth.uid() = farmer_id)
@@ -39,6 +40,7 @@ create policy "farmers manage their own promo codes"
 -- Same caveat as every other table here (see 0008) — FastAPI's own
 -- connection bypasses RLS entirely; this is for a future direct
 -- supabase-js read, not what /checkout/preview relies on.
+drop policy if exists "active promo codes are viewable by everyone" on promo_codes;
 create policy "active promo codes are viewable by everyone"
   on promo_codes for select
   using (is_active = true);

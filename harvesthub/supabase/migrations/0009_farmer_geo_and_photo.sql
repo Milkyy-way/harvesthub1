@@ -44,19 +44,23 @@ on conflict (id) do nothing;
 -- getPublicUrl() endpoint bypasses RLS entirely) — this select policy is
 -- defense-in-depth for the supabase-js `.download()`/`.list()` path, not
 -- what the feed itself relies on.
+drop policy if exists "anyone can read farmer photos" on storage.objects;
 create policy "anyone can read farmer photos"
   on storage.objects for select
   using (bucket_id = 'farmer-photos');
 
+drop policy if exists "farmers can upload their own farm photo" on storage.objects;
 create policy "farmers can upload their own farm photo"
   on storage.objects for insert
   with check (bucket_id = 'farmer-photos' and auth.uid()::text = (storage.foldername(name))[1]);
 
+drop policy if exists "farmers can replace their own farm photo" on storage.objects;
 create policy "farmers can replace their own farm photo"
   on storage.objects for update
   using (bucket_id = 'farmer-photos' and auth.uid()::text = (storage.foldername(name))[1])
   with check (bucket_id = 'farmer-photos' and auth.uid()::text = (storage.foldername(name))[1]);
 
+drop policy if exists "farmers can remove their own farm photo" on storage.objects;
 create policy "farmers can remove their own farm photo"
   on storage.objects for delete
   using (bucket_id = 'farmer-photos' and auth.uid()::text = (storage.foldername(name))[1]);

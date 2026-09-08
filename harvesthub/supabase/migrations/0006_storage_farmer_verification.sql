@@ -30,19 +30,23 @@ on conflict (id) do nothing;
 -- makes the policy silently always-false (confusing "permission denied"
 -- with no useful message), so don't drop it.
 
+drop policy if exists "farmers can read their own verification documents" on storage.objects;
 create policy "farmers can read their own verification documents"
   on storage.objects for select
   using (bucket_id = 'farmer-verification-docs' and auth.uid()::text = (storage.foldername(name))[1]);
 
+drop policy if exists "farmers can upload their own verification documents" on storage.objects;
 create policy "farmers can upload their own verification documents"
   on storage.objects for insert
   with check (bucket_id = 'farmer-verification-docs' and auth.uid()::text = (storage.foldername(name))[1]);
 
+drop policy if exists "farmers can replace their own verification documents" on storage.objects;
 create policy "farmers can replace their own verification documents"
   on storage.objects for update
   using (bucket_id = 'farmer-verification-docs' and auth.uid()::text = (storage.foldername(name))[1])
   with check (bucket_id = 'farmer-verification-docs' and auth.uid()::text = (storage.foldername(name))[1]);
 
+drop policy if exists "farmers can remove their own verification documents" on storage.objects;
 create policy "farmers can remove their own verification documents"
   on storage.objects for delete
   using (bucket_id = 'farmer-verification-docs' and auth.uid()::text = (storage.foldername(name))[1]);

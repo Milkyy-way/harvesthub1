@@ -32,11 +32,13 @@ alter table cart_items enable row level security;
 -- NOTE: same caveat as products/categories (see 0008) — FastAPI's own
 -- connection bypasses RLS entirely. This policy is for any future direct
 -- supabase-js access to cart_items, not what the /cart endpoints rely on.
+drop policy if exists "customers manage their own cart items" on cart_items;
 create policy "customers manage their own cart items"
   on cart_items for all
   using (auth.uid() = customer_id)
   with check (auth.uid() = customer_id);
 
+drop trigger if exists cart_items_set_updated_at on cart_items;
 create trigger cart_items_set_updated_at
   before update on cart_items
   for each row execute procedure public.set_updated_at();

@@ -29,14 +29,17 @@ create table if not exists farmer_profiles (
 
 alter table farmer_profiles enable row level security;
 
+drop policy if exists "farmers can view their own farm profile" on farmer_profiles;
 create policy "farmers can view their own farm profile"
   on farmer_profiles for select
   using (auth.uid() = id);
 
+drop policy if exists "farmers can update their own farm profile" on farmer_profiles;
 create policy "farmers can update their own farm profile"
   on farmer_profiles for update
   using (auth.uid() = id);
 
+drop trigger if exists farmer_profiles_set_updated_at on farmer_profiles;
 create trigger farmer_profiles_set_updated_at
   before update on farmer_profiles
   for each row execute procedure public.set_updated_at();
@@ -67,14 +70,17 @@ create table if not exists farmer_verification (
 
 alter table farmer_verification enable row level security;
 
+drop policy if exists "farmers can view their own verification record" on farmer_verification;
 create policy "farmers can view their own verification record"
   on farmer_verification for select
   using (auth.uid() = id);
 
+drop policy if exists "farmers can update their own verification record" on farmer_verification;
 create policy "farmers can update their own verification record"
   on farmer_verification for update
   using (auth.uid() = id);
 
+drop trigger if exists farmer_verification_set_updated_at on farmer_verification;
 create trigger farmer_verification_set_updated_at
   before update on farmer_verification
   for each row execute procedure public.set_updated_at();
@@ -109,6 +115,7 @@ create index if not exists farmer_certifications_farmer_id_idx on farmer_certifi
 
 alter table farmer_certifications enable row level security;
 
+drop policy if exists "farmers can manage their own certifications" on farmer_certifications;
 create policy "farmers can manage their own certifications"
   on farmer_certifications for all
   using (auth.uid() = farmer_id)

@@ -35,14 +35,17 @@ alter table customer_profiles enable row level security;
 -- Unlike profiles, there is no "viewable by everyone" policy here — address
 -- and dietary data are private, not something farmers or other customers
 -- need to read.
+drop policy if exists "customers can view their own customer profile" on customer_profiles;
 create policy "customers can view their own customer profile"
   on customer_profiles for select
   using (auth.uid() = id);
 
+drop policy if exists "customers can update their own customer profile" on customer_profiles;
 create policy "customers can update their own customer profile"
   on customer_profiles for update
   using (auth.uid() = id);
 
+drop trigger if exists customer_profiles_set_updated_at on customer_profiles;
 create trigger customer_profiles_set_updated_at
   before update on customer_profiles
   for each row execute procedure public.set_updated_at();

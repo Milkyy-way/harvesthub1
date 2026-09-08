@@ -1,23 +1,22 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, ScrollView, ActivityIndicator, Pressable, Alert, Platform, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, ActivityIndicator, Pressable, Alert, StyleSheet } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useStripe } from '@stripe/stripe-react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { colors, spacing, radius } from '../../constants/theme';
 import { apiClient } from '../../lib/apiClient';
 import { useCheckoutDraft } from '../../contexts/CheckoutDraftContext';
 import { CheckoutFarmSection } from '../../components/customer/CheckoutFarmSection';
 import type { CheckoutPreviewResponse } from '../../types/checkout';
-
-type PaymentMethod = 'card' | 'wallet' | 'cash_on_pickup';
-
-const WALLET_LABEL = Platform.OS === 'ios' ? 'Apple Pay' : 'Google Pay';
+import type { CreateOrderRequest, CreateOrderResponse, OrderPaymentMethod } from '../../types/orders';
 
 export default function CheckoutScreen() {
   const { farmerIds: farmerIdsParam } = useLocalSearchParams<{ farmerIds: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { fulfillmentByFarm } = useCheckoutDraft();
+  const { initPaymentSheet, presentPaymentSheet } = useStripe();
 
   const farmerIds = useMemo<string[]>(() => {
     try {
@@ -34,7 +33,8 @@ export default function CheckoutScreen() {
   const [promoInputs, setPromoInputs] = useState<Record<string, string>>({});
   const [appliedPromoCodes, setAppliedPromoCodes] = useState<Record<string, string>>({});
   const [applyingPromoFor, setApplyingPromoFor] = useState<string | null>(null);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<OrderPaymentMethod | null>(null);
+  const [placingOrder, setPlacingOrder] = useState(false);
 
   const loadPreview = useCallback(
     (promoOverrides: Record<string, string> = appliedPromoCodes) => {
@@ -85,11 +85,64 @@ export default function CheckoutScreen() {
     loadPreview(nextCodes);
   };
 
-  const handlePlaceOrder = () => {
-    Alert.alert(
-      'Payment coming soon',
-      "This is your full estimate — placing the order and taking payment is the next piece we're building. Nothing has been charged."
-    );
+  const buildOrderRequest = (): CreateOrderRequest => ({
+    payment_method: paymentMethod!,
+    groups: farmerIds.map((farmerId) => {
+      const fulfillment = fulfillmentByFarm[farmerId];
+      return {
+        farmer_id: farmerId,
+        fulfillment_method: fulfillment?.method ?? 'pickup',
+        delivery_address: fulfillment?.method === 'delivery' ? fulfillment.deliveryAddress : null,
+        promo_code: appliedPromoCodes[farmerId] ?? null,
+      };
+    }),
+  });
+
+  const handlePlaceOrder = async () => {
+    if (!paymentMethod || placingOrder) return;
+    setPlacingOrder(true);
+    try {
+      const res = await apiClient.post<CreateOrderResponse>('/orders', buildOrderRequest());
+      const { order, client_secret } = res.data;
+
+      if (paymentMethod === 'cash_on_pickup' || !client_secret) {
+        router.replace({ pathname: '/(customer)/orders/[id]', params: { id: order.id, justPlaced: '1' } });
+        return;
+      }
+
+      const { error: initError } = await initPaymentSheet({
+        merchantDisplayName: 'HarvestHub',
+        paymentIntentClientSecret: client_secret,
+      });
+      if (initError) {
+        Alert.alert('Could not start payment', initError.message);
+        return;
+      }
+
+      const { error: presentError } = await presentPaymentSheet();
+      if (presentError) {
+        if (presentError.code !== 'Canceled') {
+          Alert.alert('Payment not completed', presentError.message);
+        }
+        return;
+      }
+
+      // Immediate best-effort reconciliation for a snappy UI — the Stripe
+      // webhook (app/webhooks/router.py) is the authoritative source and
+      // will confirm this independently even if this call fails.
+      try {
+        await apiClient.post(`/orders/${order.id}/sync-payment-status`);
+      } catch (err) {
+        console.warn('Could not sync payment status immediately (webhook will still confirm it):', err);
+      }
+
+      router.replace({ pathname: '/(customer)/orders/[id]', params: { id: order.id, justPlaced: '1' } });
+    } catch (err: any) {
+      console.warn('Could not place order:', err);
+      Alert.alert('Could not place order', err?.response?.data?.detail ?? 'Please try again.');
+    } finally {
+      setPlacingOrder(false);
+    }
   };
 
   if (loading && !preview) {
@@ -136,15 +189,9 @@ export default function CheckoutScreen() {
             <Text style={styles.paymentTitle}>Payment method</Text>
             <PaymentOption
               icon="credit-card"
-              label="Credit / Debit Card"
+              label="Card / Apple Pay / Google Pay"
               selected={paymentMethod === 'card'}
               onPress={() => setPaymentMethod('card')}
-            />
-            <PaymentOption
-              icon="account-balance-wallet"
-              label={WALLET_LABEL}
-              selected={paymentMethod === 'wallet'}
-              onPress={() => setPaymentMethod('wallet')}
             />
             {preview.groups.some((g) => g.fulfillment_method === 'pickup') ? (
               <PaymentOption
@@ -167,11 +214,15 @@ export default function CheckoutScreen() {
             <Text style={styles.totalValue}>${preview.grand_total.toFixed(2)}</Text>
           </View>
           <Pressable
-            style={[styles.placeOrderButton, !paymentMethod && styles.placeOrderButtonDisabled]}
+            style={[styles.placeOrderButton, (!paymentMethod || placingOrder) && styles.placeOrderButtonDisabled]}
             onPress={handlePlaceOrder}
-            disabled={!paymentMethod}
+            disabled={!paymentMethod || placingOrder}
           >
-            <Text style={styles.placeOrderText}>{paymentMethod ? 'Place Order' : 'Select a payment method'}</Text>
+            {placingOrder ? (
+              <ActivityIndicator size="small" color={colors.white} />
+            ) : (
+              <Text style={styles.placeOrderText}>{paymentMethod ? 'Place Order' : 'Select a payment method'}</Text>
+            )}
           </Pressable>
         </View>
       ) : null}

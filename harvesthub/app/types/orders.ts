@@ -1,0 +1,87 @@
+// Matches the FastAPI backend's order schemas
+// (harvesthub-backend/app/orders/schemas.py).
+
+export type FulfillmentMethod = 'pickup' | 'delivery';
+// 'card' covers everything the native Stripe PaymentSheet offers (manually
+// entered card, Apple Pay, Google Pay) — the sheet itself decides what to
+// show based on device capability, the app doesn't distinguish which.
+export type OrderPaymentMethod = 'card' | 'cash_on_pickup';
+
+export type StoreOrderStatus = 'pending_payment' | 'paid' | 'completed' | 'cancelled';
+export type OrderStatus = 'active' | 'completed' | 'cancelled';
+
+export interface OrderLineItem {
+  product_id: string | null;
+  product_name: string;
+  unit: string;
+  unit_price: number;
+  quantity: number;
+  line_total: number;
+}
+
+export interface StoreOrder {
+  id: string;
+  farmer_id: string;
+  farm_name: string;
+  fulfillment_method: FulfillmentMethod;
+  pickup_address_street: string | null;
+  pickup_address_city: string | null;
+  pickup_address_state: string | null;
+  pickup_address_zip: string | null;
+  delivery_address_street: string | null;
+  delivery_address_city: string | null;
+  delivery_address_state: string | null;
+  delivery_address_zip: string | null;
+  subtotal: number;
+  promo_code: string | null;
+  promo_discount: number;
+  delivery_fee: number;
+  service_fee: number;
+  tax: number;
+  total: number;
+  refunded_amount: number;
+  status: StoreOrderStatus;
+  items: OrderLineItem[];
+}
+
+export interface OrderPayment {
+  id: string;
+  amount: number;
+  currency: string;
+  payment_method: OrderPaymentMethod;
+  status: string;
+  failure_reason: string | null;
+}
+
+export interface Order {
+  id: string;
+  status: OrderStatus;
+  placed_at: string;
+  grand_total: number;
+  store_orders: StoreOrder[];
+  payment: OrderPayment | null;
+}
+
+export interface DeliveryAddressIn {
+  street: string;
+  city: string;
+  state: string;
+  zip: string;
+}
+
+export interface CreateOrderGroup {
+  farmer_id: string;
+  fulfillment_method: FulfillmentMethod;
+  delivery_address?: DeliveryAddressIn | null;
+  promo_code?: string | null;
+}
+
+export interface CreateOrderRequest {
+  groups: CreateOrderGroup[];
+  payment_method: OrderPaymentMethod;
+}
+
+export interface CreateOrderResponse {
+  order: Order;
+  client_secret: string | null;
+}

@@ -23,6 +23,7 @@ create table if not exists categories (
 
 alter table categories enable row level security;
 
+drop policy if exists "categories are viewable by everyone" on categories;
 create policy "categories are viewable by everyone"
   on categories for select
   using (true);
@@ -72,15 +73,18 @@ create index if not exists products_active_category_farmer_idx
 
 alter table products enable row level security;
 
+drop policy if exists "active products are viewable by everyone, own products always" on products;
 create policy "active products are viewable by everyone, own products always"
   on products for select
   using (is_active = true or auth.uid() = farmer_id);
 
+drop policy if exists "farmers can manage their own products" on products;
 create policy "farmers can manage their own products"
   on products for all
   using (auth.uid() = farmer_id)
   with check (auth.uid() = farmer_id);
 
+drop trigger if exists products_set_updated_at on products;
 create trigger products_set_updated_at
   before update on products
   for each row execute procedure public.set_updated_at();

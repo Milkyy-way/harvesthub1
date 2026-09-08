@@ -9,6 +9,7 @@ export default function CustomerLayout() {
         <Stack.Screen name="farmer/[id]" />
         <Stack.Screen name="cart" />
         <Stack.Screen name="checkout" />
+        <Stack.Screen name="orders/[id]" />
       </Stack>
     </CheckoutDraftProvider>
   );

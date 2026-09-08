@@ -17,10 +17,12 @@ alter table profiles enable row level security;
 
 -- Everyone can read basic profile info (needed to show a farmer's name on a
 -- listing, etc.) but can only ever modify their own row.
+drop policy if exists "profiles are viewable by everyone" on profiles;
 create policy "profiles are viewable by everyone"
   on profiles for select
   using (true);
 
+drop policy if exists "users can update their own profile" on profiles;
 create policy "users can update their own profile"
   on profiles for update
   using (auth.uid() = id);

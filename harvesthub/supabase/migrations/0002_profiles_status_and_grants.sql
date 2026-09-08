@@ -8,7 +8,7 @@
 -- so a pending farmer can't self-approve their own application.
 
 alter table profiles
-  add column status text not null default 'active'
+  add column if not exists status text not null default 'active'
     check (status in ('active', 'pending_verification', 'rejected', 'suspended'));
 
 create index if not exists profiles_role_status_idx on profiles (role, status);

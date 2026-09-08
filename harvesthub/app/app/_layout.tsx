@@ -3,9 +3,17 @@ import { View, ActivityIndicator } from 'react-native';
 import { Slot, useRouter, useSegments } from 'expo-router';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
+import { StripeProvider } from '@stripe/stripe-react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { AuthProvider, useAuth } from '../contexts/AuthContext';
 import { colors } from '../constants/theme';
+
+const stripePublishableKey = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY;
+if (!stripePublishableKey) {
+  throw new Error(
+    'Missing EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY. Set it in .env to your Stripe test-mode publishable key (pk_test_...).'
+  );
+}
 
 // Without this, the MaterialIcons font (used everywhere via IconSymbol /
 // direct @expo/vector-icons/MaterialIcons imports — search bar, category
@@ -92,8 +100,10 @@ export default function RootLayout() {
   if (!fontsLoaded) return null;
 
   return (
-    <AuthProvider>
-      <RootNavigation />
-    </AuthProvider>
+    <StripeProvider publishableKey={stripePublishableKey!} merchantIdentifier="merchant.com.harvesthub.app">
+      <AuthProvider>
+        <RootNavigation />
+      </AuthProvider>
+    </StripeProvider>
   );
 }
