@@ -30,6 +30,11 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,
+    // Explicit, not left to the library default: lib/googleAuth.ts parses
+    // access_token/refresh_token straight out of the OAuth redirect URL,
+    // which is what the implicit flow returns. PKCE would return a `code`
+    // param needing a separate exchangeCodeForSession() call instead.
+    flowType: 'implicit',
   },
 });
 

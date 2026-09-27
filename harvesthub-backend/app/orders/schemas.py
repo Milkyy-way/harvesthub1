@@ -40,6 +40,7 @@ class StoreOrderOut(BaseModel):
     id: str
     farmer_id: str
     farm_name: str
+    photo_url: Optional[str]
     fulfillment_method: FulfillmentMethod
     pickup_address_street: Optional[str]
     pickup_address_city: Optional[str]
@@ -59,6 +60,7 @@ class StoreOrderOut(BaseModel):
     refunded_amount: float
     status: Literal["pending_payment", "paid", "completed", "cancelled"]
     items: list[OrderItemOut]
+    my_rating: Optional[int]
 
 
 class PaymentOut(BaseModel):
@@ -86,3 +88,41 @@ class CreateOrderResponse(BaseModel):
 
 class CancelRequest(BaseModel):
     reason: Optional[str] = None
+
+
+class ReorderResponse(BaseModel):
+    added_count: int
+    skipped_count: int
+    cart_item_count: int
+
+
+class DailyActivityOut(BaseModel):
+    date: str
+    order_count: int
+    amount: float
+
+
+class FavoriteFarmOut(BaseModel):
+    farmer_id: str
+    farm_name: str
+    order_count: int
+
+
+class TopProductOut(BaseModel):
+    product_name: str
+    quantity: int
+
+
+class DashboardSummaryOut(BaseModel):
+    orders_total: int
+    orders_active: int
+    orders_completed: int
+    orders_cancelled: int
+    # Scoped to whatever `range` was requested (all-time when omitted) —
+    # see app/orders/service.py::get_dashboard_summary.
+    spending_all_time: float
+    savings_all_time: float
+    average_order_value: float
+    activity_last_7_days: list[DailyActivityOut]
+    favorite_farm: Optional[FavoriteFarmOut]
+    most_ordered_product: Optional[TopProductOut]

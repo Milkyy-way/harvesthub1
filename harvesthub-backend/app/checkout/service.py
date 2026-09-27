@@ -5,7 +5,8 @@ from app.products.models import Product
 from app.farmers.models import FarmerProfile
 from app.checkout.schemas import CheckoutGroupRequest
 from app.promotions.service import apply_promo
-from app.core.pricing import SERVICE_FEE_RATE, DELIVERY_FEE_FLAT, TAX_RATE
+from app.core.pricing import SERVICE_FEE_RATE, DELIVERY_FEE_FLAT
+from app.core.tax import compute_item_tax
 
 
 def build_checkout_preview(db: Session, customer_id: str, groups: list[CheckoutGroupRequest]) -> dict:
@@ -38,6 +39,7 @@ def build_checkout_preview(db: Session, customer_id: str, groups: list[CheckoutG
                 "price": float(product.price),
                 "quantity": item.quantity,
                 "line_total": round(float(product.price) * item.quantity, 2),
+                "tax_category": product.tax_category,
             }
         )
 
@@ -55,8 +57,19 @@ def build_checkout_preview(db: Session, customer_id: str, groups: list[CheckoutG
 
         delivery_fee = DELIVERY_FEE_FLAT if group.fulfillment_method == "delivery" else 0.0
         service_fee = round(subtotal * SERVICE_FEE_RATE, 2)
-        taxable_base = max(subtotal - discount, 0.0)
-        tax = round(taxable_base * TAX_RATE, 2)
+
+        # Per-item, not a single blended rate over the whole subtotal — a
+        # farm's cart can mix raw/prepared items, which tax differently
+        # (see app/core/tax.py). The promo discount is prorated across
+        # items by their share of subtotal before each item's own rate
+        # applies. Round only once, on the aggregate, to avoid compounding
+        # cent-level drift from rounding each item individually.
+        tax_total = 0.0
+        for i in items:
+            item_discount_share = discount * (i["line_total"] / subtotal) if subtotal > 0 else 0.0
+            item_taxable = max(i["line_total"] - item_discount_share, 0.0)
+            tax_total += compute_item_tax(farmer.address_state, i["tax_category"], item_taxable)
+        tax = round(tax_total, 2)
 
         farm_total = round(max(subtotal - discount, 0.0) + delivery_fee + service_fee + tax, 2)
         grand_total += farm_total

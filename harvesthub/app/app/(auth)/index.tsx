@@ -1,14 +1,15 @@
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { colors, spacing, radius } from '../../constants/theme';
+import { Logo } from '../../components/Logo';
 
 export default function Welcome() {
   const router = useRouter();
 
   return (
     <View style={styles.container}>
-      <View style={styles.logo}>
-        <Text style={styles.logoText}>HH</Text>
+      <View style={styles.logoWrap}>
+        <Logo size={128} />
       </View>
       <Text style={styles.title}>HarvestHub</Text>
       <Text style={styles.subtitle}>Fresh, local, straight from the farm</Text>
@@ -33,16 +34,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: spacing.lg,
   },
-  logo: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.md,
-  },
-  logoText: { color: colors.white, fontSize: 22, fontWeight: '600' },
+  logoWrap: { marginBottom: spacing.md },
   title: { color: colors.white, fontSize: 28, fontWeight: '600', marginBottom: spacing.xs },
   subtitle: { color: 'rgba(255,255,255,0.75)', fontSize: 14, marginBottom: spacing.xl },
   actions: { width: '100%', marginTop: spacing.xl },

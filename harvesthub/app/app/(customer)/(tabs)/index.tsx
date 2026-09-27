@@ -8,15 +8,24 @@ import { useAuth } from '../../../contexts/AuthContext';
 import { apiClient } from '../../../lib/apiClient';
 import { useDebouncedValue } from '../../../hooks/useDebouncedValue';
 import { Header } from '../../../components/customer/Header';
-import { SearchBar } from '../../../components/customer/SearchBar';
+import { SavingsTicker } from '../../../components/customer/SavingsTicker';
+import { FarmerSpotlightRail } from '../../../components/customer/FarmerSpotlightRail';
+import { HarvestPicksRail } from '../../../components/customer/HarvestPicksRail';
 import { CategoryRail } from '../../../components/customer/CategoryRail';
 import { FarmerFeedList } from '../../../components/customer/FarmerFeedList';
-import type { Category, CartSummary, FarmerFeedResponse } from '../../../types/database';
+import type {
+  Category,
+  CartSummary,
+  FarmerFeedResponse,
+  FarmerSpotlightResponse,
+  HarvestPicksResponse,
+} from '../../../types/database';
+import type { DashboardSummary } from '../../../types/dashboard';
 
 const PAGE_SIZE = 20;
 
 export default function CustomerHome() {
-  const { customerProfile } = useAuth();
+  const { customerProfile, profile } = useAuth();
   const router = useRouter();
 
   const [categories, setCategories] = useState<Category[]>([]);
@@ -32,12 +41,40 @@ export default function CustomerHome() {
   const [error, setError] = useState<string | null>(null);
   const [cartItemCount, setCartItemCount] = useState(0);
 
+  const [spotlight, setSpotlight] = useState<FarmerSpotlightResponse['items']>([]);
+  const [harvestPicks, setHarvestPicks] = useState<HarvestPicksResponse['items']>([]);
+  const [savingsAmount, setSavingsAmount] = useState<number | null>(null);
+
+  const avatarInitial = (profile?.full_name?.trim()?.[0] ?? 'H').toUpperCase();
+
   useEffect(() => {
     apiClient.get<Category[]>('/categories').then(
       (res) => setCategories(res.data),
       (err) => console.warn('Could not load categories:', err)
     );
   }, []);
+
+  // These three power the hero/spotlight/harvest sections and don't
+  // depend on search or category filters — fetched once, refreshed on
+  // pull-to-refresh alongside the main feed (see handleRefresh below).
+  const loadExtras = useCallback(() => {
+    apiClient.get<FarmerSpotlightResponse>('/farmers/spotlight').then(
+      (res) => setSpotlight(res.data.items),
+      (err) => console.warn('Could not load farmer spotlight:', err)
+    );
+    apiClient.get<HarvestPicksResponse>('/products/harvest').then(
+      (res) => setHarvestPicks(res.data.items),
+      (err) => console.warn('Could not load harvest picks:', err)
+    );
+    apiClient.get<DashboardSummary>('/customers/me/dashboard-summary').then(
+      (res) => setSavingsAmount(res.data.savings_all_time),
+      (err) => console.warn('Could not load savings summary:', err)
+    );
+  }, []);
+
+  useEffect(() => {
+    loadExtras();
+  }, [loadExtras]);
 
   // Refetched on focus (not just mount) — the cart can change on the farm
   // detail or cart screens, and this badge should reflect that the moment
@@ -88,6 +125,7 @@ export default function CustomerHome() {
   const handleRefresh = () => {
     setRefreshing(true);
     fetchPage(0, true);
+    loadExtras();
   };
 
   const handleEndReached = () => {
@@ -108,13 +146,14 @@ export default function CustomerHome() {
     <View style={styles.container}>
       <StatusBar style="light" />
       <Header
-        companyName="HarvestHub"
-        addressLine={customerProfile?.address_street ?? 'Loading address…'}
+        addressCity={customerProfile?.address_city ?? null}
+        nearbyFarmCount={total || null}
+        searchValue={searchText}
+        onSearchChange={setSearchText}
         cartItemCount={cartItemCount}
         onPressCart={() => router.push('/(customer)/cart')}
+        avatarInitial={avatarInitial}
       />
-      <SearchBar value={searchText} onChangeText={setSearchText} />
-      <CategoryRail categories={categories} selectedSlug={selectedCategory} onSelect={setSelectedCategory} />
       <FarmerFeedList
         items={items}
         loading={loading}
@@ -123,6 +162,17 @@ export default function CustomerHome() {
         onEndReached={handleEndReached}
         onPressFarmer={(id) => router.push({ pathname: '/(customer)/farmer/[id]', params: { id } })}
         emptyMessage={emptyMessage}
+        header={
+          <View>
+            {savingsAmount != null && savingsAmount > 0 ? <SavingsTicker amount={savingsAmount} /> : null}
+            <FarmerSpotlightRail
+              items={spotlight}
+              onPressFarmer={(id) => router.push({ pathname: '/(customer)/farmer/[id]', params: { id } })}
+            />
+            <HarvestPicksRail items={harvestPicks} />
+            <CategoryRail categories={categories} selectedSlug={selectedCategory} onSelect={setSelectedCategory} />
+          </View>
+        }
       />
     </View>
   );

@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 from sqlalchemy import Column, String, Float, TIMESTAMP
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID, ARRAY
 from app.core.database import Base
 
 class CustomerProfile(Base):
@@ -15,4 +15,9 @@ class CustomerProfile(Base):
     latitude = Column(Float, nullable=True)     # new — added via migration below
     longitude = Column(Float, nullable=True)    # new
     geocoded_at = Column(TIMESTAMP, nullable=True)  # new
+    # Existed since 0003 (signup captures these) but never mapped here until
+    # the Account tab needed to display them — same "map only what's used
+    # so far" discipline as every other model in this project.
+    dietary_preferences = Column(ARRAY(String), nullable=True)
+    produce_interests = Column(ARRAY(String), nullable=True)
     updated_at = Column(TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow)

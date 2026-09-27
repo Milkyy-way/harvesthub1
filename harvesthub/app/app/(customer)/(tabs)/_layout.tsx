@@ -21,10 +21,10 @@ export default function CustomerTabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="search"
+        name="dashboard"
         options={{
-          title: 'Search',
-          tabBarIcon: ({ color, size }) => <IconSymbol name="magnifyingglass" color={color} size={size} />,
+          title: 'Dashboard',
+          tabBarIcon: ({ color, size }) => <IconSymbol name="chart.bar.fill" color={color} size={size} />,
         }}
       />
       <Tabs.Screen

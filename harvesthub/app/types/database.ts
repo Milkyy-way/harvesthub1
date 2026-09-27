@@ -1,9 +1,13 @@
 export type UserRole = 'customer' | 'farmer' | 'admin';
-export type ProfileStatus = 'active' | 'pending_verification' | 'rejected' | 'suspended';
+// 'pending_role_selection': an OAuth signup landed with an identity but no
+// role yet — see supabase/migrations/0018_oauth_role_selection.sql.
+export type ProfileStatus = 'active' | 'pending_verification' | 'rejected' | 'suspended' | 'pending_role_selection';
 
 export interface Profile {
   id: string;
-  role: UserRole;
+  // null only while status is 'pending_role_selection' — app/(role-setup)/
+  // is where that gets resolved.
+  role: UserRole | null;
   status: ProfileStatus;
   full_name: string | null;
   phone: string | null;
@@ -40,6 +44,8 @@ export interface CustomerProfileGeo {
   address_zip: string;
   latitude: number | null;
   longitude: number | null;
+  dietary_preferences: DietaryPreference[];
+  produce_interests: ProduceInterest[];
 }
 
 export type FarmType = 'produce' | 'dairy' | 'livestock';
@@ -88,6 +94,44 @@ export interface FarmerFeedResponse {
   limit: number;
   offset: number;
   total: number;
+}
+
+// Matches the FastAPI backend's FarmerSpotlightCard/FarmerSpotlightResponse
+// (harvesthub-backend/app/farmers/schemas.py) — GET /farmers/spotlight.
+// Ranked by a blend of distance and collective rating, not distance alone.
+export interface FarmerSpotlightCard {
+  id: string;
+  farm_name: string;
+  photo_url: string | null;
+  distance_km: number;
+  average_rating: number | null;
+  rating_count: number;
+}
+
+export interface FarmerSpotlightResponse {
+  items: FarmerSpotlightCard[];
+}
+
+// Matches HarvestPickOut/HarvestPicksResponse (harvesthub-backend/app/
+// products/schemas.py) — GET /products/harvest. tag is algorithmically
+// derived (favorite/limited/just-picked), not farmer-set — see
+// app/products/service.py::get_harvest_picks for exactly how.
+export type HarvestPickTag = 'farmer_favorite' | 'limited' | 'just_picked';
+
+export interface HarvestPick {
+  id: string;
+  name: string;
+  price: number;
+  unit: string;
+  image_url: string | null;
+  farmer_id: string;
+  farm_name: string;
+  distance_km: number;
+  tag: HarvestPickTag | null;
+}
+
+export interface HarvestPicksResponse {
+  items: HarvestPick[];
 }
 
 export type FarmerVerificationStatus = 'pending_verification' | 'approved' | 'rejected';

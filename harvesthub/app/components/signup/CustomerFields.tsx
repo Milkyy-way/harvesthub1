@@ -155,7 +155,7 @@ export function CustomerFields({ value, onChange, errors }: Props) {
 }
 
 const styles = StyleSheet.create({
-  sectionTitle: { fontSize: 13, fontWeight: '600', color: colors.text, marginBottom: spacing.sm, marginTop: spacing.xs },
+  sectionTitle: { fontSize: 13, fontWeight: '600', color: colors.text, marginBottom: spacing.sm, marginTop: spacing.sm },
   row: { flexDirection: 'row', gap: spacing.sm },
   flex1: { flex: 1 },
 });

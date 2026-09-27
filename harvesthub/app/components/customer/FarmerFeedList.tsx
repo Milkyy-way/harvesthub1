@@ -1,3 +1,4 @@
+import type { ReactElement } from 'react';
 import { FlatList, RefreshControl, View, Text, ActivityIndicator, StyleSheet } from 'react-native';
 import { colors, spacing } from '../../constants/theme';
 import type { FarmerFeedCard as FarmerFeedCardType } from '../../types/database';
@@ -11,6 +12,11 @@ type Props = {
   onEndReached: () => void;
   onPressFarmer: (id: string) => void;
   emptyMessage: string;
+  // Rendered above the farm cards, inside the same FlatList — this is
+  // how the hero/savings/spotlight/harvest/category-rail sections sit
+  // above "Farms near you" without nesting another scroll view (which
+  // would break this list's own virtualization and onEndReached paging).
+  header?: ReactElement | null;
 };
 
 export function FarmerFeedList({
@@ -21,6 +27,7 @@ export function FarmerFeedList({
   onEndReached,
   onPressFarmer,
   emptyMessage,
+  header,
 }: Props) {
   if (loading && items.length === 0) {
     return (
@@ -40,6 +47,7 @@ export function FarmerFeedList({
       onEndReached={onEndReached}
       onEndReachedThreshold={0.5}
       contentContainerStyle={items.length === 0 ? styles.emptyContent : styles.content}
+      ListHeaderComponent={header}
       ListEmptyComponent={
         <View style={styles.center}>
           <Text style={styles.emptyText}>{emptyMessage}</Text>

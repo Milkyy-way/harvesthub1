@@ -1,4 +1,5 @@
-from sqlalchemy import Column, String, Boolean, Numeric, Integer
+from datetime import datetime
+from sqlalchemy import Column, String, Boolean, Numeric, Integer, TIMESTAMP
 from sqlalchemy.dialects.postgresql import UUID
 from app.core.database import Base
 
@@ -15,3 +16,5 @@ class Product(Base):
     quantity_available = Column(Integer, nullable=False, default=0)
     image_url = Column(String, nullable=True)
     is_active = Column(Boolean, nullable=False, default=True)
+    tax_category = Column(String, nullable=False, default="raw")  # 'raw' | 'prepared' — see app/core/tax.py
+    created_at = Column(TIMESTAMP, default=datetime.utcnow)  # powers the Home feed's "just picked" harvest tag

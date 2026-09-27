@@ -1,5 +1,6 @@
 import uuid
-from datetime import datetime
+from collections import defaultdict
+from datetime import datetime, timedelta, timezone
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
@@ -10,14 +11,28 @@ from app.payments.models import Payment, Refund, PaymentCancellation
 from app.payments import stripe_client
 from app.products.models import Product
 from app.cart.models import CartItem
+from app.farmers.models import FarmerProfile
 from app.checkout.service import build_checkout_preview
 from app.checkout.schemas import CheckoutGroupRequest
 from app.orders.schemas import CreateOrderRequest
+from app.payouts import service as payouts_service
+from app.ratings import service as ratings_service
+from app.ratings.schemas import SubmitRatingRequest
+from app.cart.service import _cart_totals
 
 # Terminal from the customer's point of view — no further payment action
 # will change these without a new attempt (we don't build retries yet).
 _TERMINAL_PAYMENT_STATUSES = ("succeeded", "canceled", "failed")
-_CANCELLABLE_STORE_ORDER_STATUSES = ("pending_payment", "paid")
+# 'completed' is cancellable/refundable too (e.g. a quality complaint after
+# pickup) — this is what makes the farmer-payout ledger's refund-before/
+# after-payout branch reachable at all, since a ledger entry is only ever
+# created at completion (see app/payouts/service.py). No time limit on this
+# post-completion refund window yet — a known simplification.
+_CANCELLABLE_STORE_ORDER_STATUSES = ("pending_payment", "paid", "completed")
+# Statuses whose refund actually needs a real Stripe refund + a farmer
+# ledger adjustment (as opposed to 'pending_payment', which never captured
+# any money and never created a ledger entry).
+_REFUNDABLE_STORE_ORDER_STATUSES = ("paid", "completed")
 
 
 def get_owned_order(db: Session, customer_id: str, order_id: str) -> Order:
@@ -31,6 +46,16 @@ def build_order_out(db: Session, order_id) -> dict:
     order = db.query(Order).filter(Order.id == order_id).first()
     store_orders = db.query(StoreOrder).filter(StoreOrder.order_id == order_id).order_by(StoreOrder.created_at).all()
     payment = db.query(Payment).filter(Payment.order_id == order_id).first()
+
+    # Live-joined, not a snapshot — unlike price/address (frozen for
+    # historical accuracy), a farm's photo has no legal/financial reason to
+    # stay pinned to what it was at order time, so this just shows the
+    # farm's current photo. Avoids a new snapshot column + migration.
+    photo_by_farmer = dict(
+        db.query(FarmerProfile.id, FarmerProfile.photo_url)
+        .filter(FarmerProfile.id.in_({so.farmer_id for so in store_orders}))
+        .all()
+    )
 
     store_order_outs = []
     grand_total = 0.0
@@ -46,11 +71,14 @@ def build_order_out(db: Session, order_id) -> dict:
             .filter(Refund.store_order_id == so.id, Refund.status == "succeeded")
             .scalar()
         )
+        rating = ratings_service.get_rating_for_store_order(db, so.id)
         store_order_outs.append(
             {
                 "id": str(so.id),
                 "farmer_id": str(so.farmer_id),
                 "farm_name": so.farm_name,
+                "photo_url": photo_by_farmer.get(so.farmer_id),
+                "my_rating": rating.rating if rating else None,
                 "fulfillment_method": so.fulfillment_method,
                 "pickup_address_street": so.pickup_address_street,
                 "pickup_address_city": so.pickup_address_city,
@@ -105,10 +133,12 @@ def build_order_out(db: Session, order_id) -> dict:
     }
 
 
-def list_orders(db: Session, customer_id: str, status_filter: str | None) -> list[dict]:
+def list_orders(db: Session, customer_id: str, status_filter: str | None, range_key: str | None = None) -> list[dict]:
     q = db.query(Order).filter(Order.customer_id == customer_id)
     if status_filter:
         q = q.filter(Order.status == status_filter)
+    if range_key in _RANGE_WINDOWS:
+        q = q.filter(Order.placed_at >= datetime.now(timezone.utc) - _RANGE_WINDOWS[range_key])
     orders = q.order_by(Order.placed_at.desc()).all()
     return [build_order_out(db, o.id) for o in orders]
 
@@ -367,8 +397,9 @@ def cancel_store_order(
 
     payment = db.query(Payment).filter(Payment.order_id == order.id).first()
 
-    if store_order.status == "paid":
+    if store_order.status in _REFUNDABLE_STORE_ORDER_STATUSES:
         _refund_store_order(db, payment, store_order, reason)
+        payouts_service.handle_refund_ledger_adjustment(db, store_order)
     elif payment and payment.payment_method == "card" and payment.status not in _TERMINAL_PAYMENT_STATUSES:
         sibling_count = (
             db.query(StoreOrder)
@@ -413,11 +444,12 @@ def cancel_whole_order(db: Session, customer_id: str, order_id: str, cancelled_b
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Nothing left to cancel on this order")
 
     payment = db.query(Payment).filter(Payment.order_id == order.id).first()
-    paid = [so for so in store_orders if so.status == "paid"]
+    refundable = [so for so in store_orders if so.status in _REFUNDABLE_STORE_ORDER_STATUSES]
     pending = [so for so in store_orders if so.status == "pending_payment"]
 
-    for so in paid:
+    for so in refundable:
         _refund_store_order(db, payment, so, reason)
+        payouts_service.handle_refund_ledger_adjustment(db, so)
         so.status = "cancelled"
         db.add(_record_cancellation(order.id, so.id, cancelled_by, cancelled_by_role, reason))
 
@@ -450,5 +482,194 @@ def mark_store_order_completed(db: Session, customer_id: str, order_id: str, sto
             detail=f"Only a paid order can be marked received (current status: '{store_order.status}')",
         )
     store_order.status = "completed"
+    payouts_service.create_ledger_entry_for_completion(db, store_order)
     db.commit()
     return build_order_out(db, order.id)
+
+
+def submit_store_order_rating(
+    db: Session, customer_id: str, order_id: str, store_order_id: str, payload: SubmitRatingRequest
+) -> dict:
+    """Only once a store order is 'completed' — a customer rates the
+    experience they actually had, not one still in progress. Submitting
+    again revises the existing rating (see ratings_service.submit_rating)
+    rather than failing or stacking duplicates."""
+    order = get_owned_order(db, customer_id, order_id)
+    store_order = db.query(StoreOrder).filter(StoreOrder.id == store_order_id, StoreOrder.order_id == order.id).first()
+    if not store_order:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Store order not found")
+    if store_order.status != "completed":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Only a completed order can be rated (current status: '{store_order.status}')",
+        )
+    ratings_service.submit_rating(db, customer_id, store_order.farmer_id, store_order.id, payload)
+    db.commit()
+    return build_order_out(db, order.id)
+
+
+def reorder(db: Session, customer_id: str, order_id: str) -> dict:
+    """Re-adds a past order's items to the customer's cart ('Rebook') —
+    skips anything no longer active or out of stock rather than failing
+    the whole action, and caps each item at whatever room is actually left
+    (current stock minus whatever's already in the cart), never oversells.
+    Never re-adds more than the original line's own quantity even if more
+    stock is now available — reordering isn't a chance to buy extra."""
+    order = get_owned_order(db, customer_id, order_id)
+    store_order_ids = [so.id for so in db.query(StoreOrder).filter(StoreOrder.order_id == order.id).all()]
+    items = db.query(StoreOrderItem).filter(StoreOrderItem.store_order_id.in_(store_order_ids)).all()
+
+    added_count = 0
+    skipped_count = 0
+    for item in items:
+        product = (
+            db.query(Product).filter(Product.id == item.product_id, Product.is_active.is_(True)).first()
+            if item.product_id
+            else None
+        )
+        if not product:
+            skipped_count += 1
+            continue
+
+        cart_item = (
+            db.query(CartItem).filter(CartItem.customer_id == customer_id, CartItem.product_id == item.product_id).first()
+        )
+        current_qty = cart_item.quantity if cart_item else 0
+        room = product.quantity_available - current_qty
+        if room <= 0:
+            skipped_count += 1
+            continue
+
+        add_qty = min(item.quantity, room)
+        if cart_item:
+            cart_item.quantity += add_qty
+        else:
+            db.add(CartItem(id=uuid.uuid4(), customer_id=customer_id, product_id=item.product_id, quantity=add_qty))
+        added_count += 1
+        if add_qty < item.quantity:
+            skipped_count += 1  # partially added — still flag it so the UI can say so
+
+    db.commit()
+    _, cart_item_count = _cart_totals(db, customer_id)
+    return {"added_count": added_count, "skipped_count": skipped_count, "cart_item_count": cart_item_count}
+
+
+# Statuses that represent money actually kept by a farmer — a cancelled
+# store_order was refunded (or never captured), so it contributes nothing
+# to spending/savings/insights even if the parent order also has paid
+# siblings.
+_KEPT_STORE_ORDER_STATUSES = ("paid", "completed")
+
+
+# Rolling windows, not calendar-based (no "this month" edge cases to
+# reason about) — 'all' or an unrecognized/missing key means no lower
+# bound at all (genuine all-time), which is also what Account's own
+# dashboard-summary call (no range param) relies on for its stat tiles.
+_RANGE_WINDOWS = {
+    "week": timedelta(days=7),
+    "month": timedelta(days=30),
+    "3m": timedelta(days=90),
+    "6m": timedelta(days=180),
+}
+
+
+def get_dashboard_summary(db: Session, customer_id: str, range_key: str | None = None) -> dict:
+    orders = db.query(Order).filter(Order.customer_id == customer_id).all()
+
+    empty = {
+        "orders_total": 0,
+        "orders_active": 0,
+        "orders_completed": 0,
+        "orders_cancelled": 0,
+        "spending_all_time": 0.0,
+        "savings_all_time": 0.0,
+        "average_order_value": 0.0,
+        "activity_last_7_days": _empty_activity_buckets(),
+        "favorite_farm": None,
+        "most_ordered_product": None,
+    }
+    if not orders:
+        return empty
+
+    all_kept_store_orders = (
+        db.query(StoreOrder)
+        .filter(StoreOrder.order_id.in_({o.id for o in orders}), StoreOrder.status.in_(_KEPT_STORE_ORDER_STATUSES))
+        .all()
+    )
+
+    # The recent-activity pulse is always the real last 7 days, independent
+    # of the selected range filter below — a variable-granularity chart
+    # (daily bars for a week, weekly/monthly bars for 6 months) was more
+    # than this needed; a known, deliberate simplification.
+    buckets = _empty_activity_buckets()
+    buckets_by_date = {b["date"]: b for b in buckets}
+    store_orders_by_order: dict = defaultdict(list)
+    for so in all_kept_store_orders:
+        store_orders_by_order[so.order_id].append(so)
+    for order in orders:
+        day_key = order.placed_at.date().isoformat()
+        bucket = buckets_by_date.get(day_key)
+        if bucket is None:
+            continue  # outside the 7-day window
+        bucket["order_count"] += 1
+        bucket["amount"] = round(bucket["amount"] + sum(float(so.total) for so in store_orders_by_order.get(order.id, [])), 2)
+
+    # Everything below IS scoped to range_key (all-time when absent/'all'/
+    # unrecognized) — the Dashboard tab's date filter controls the whole
+    # view (stat tiles + insights), not just a headline number.
+    window_start = None
+    if range_key in _RANGE_WINDOWS:
+        window_start = datetime.now(timezone.utc) - _RANGE_WINDOWS[range_key]
+
+    orders_in_range = [o for o in orders if window_start is None or o.placed_at >= window_start]
+    order_ids_in_range = {o.id for o in orders_in_range}
+    kept_store_orders = [so for so in all_kept_store_orders if so.order_id in order_ids_in_range]
+
+    spending_total = round(sum(float(so.total) for so in kept_store_orders), 2)
+    savings_total = round(sum(float(so.promo_discount) for so in kept_store_orders), 2)
+
+    orders_with_spend = {so.order_id for so in kept_store_orders}
+    average_order_value = round(spending_total / len(orders_with_spend), 2) if orders_with_spend else 0.0
+
+    favorite_farm = None
+    farm_stats: dict = defaultdict(lambda: {"farm_name": "", "count": 0, "spend": 0.0})
+    for so in kept_store_orders:
+        entry = farm_stats[so.farmer_id]
+        entry["farm_name"] = so.farm_name
+        entry["count"] += 1
+        entry["spend"] += float(so.total)
+    if farm_stats:
+        top_farmer_id, top = max(farm_stats.items(), key=lambda kv: (kv[1]["count"], kv[1]["spend"]))
+        favorite_farm = {"farmer_id": str(top_farmer_id), "farm_name": top["farm_name"], "order_count": top["count"]}
+
+    most_ordered_product = None
+    kept_store_order_ids = [so.id for so in kept_store_orders]
+    if kept_store_order_ids:
+        product_qty: dict = defaultdict(int)
+        items = db.query(StoreOrderItem).filter(StoreOrderItem.store_order_id.in_(kept_store_order_ids)).all()
+        for item in items:
+            product_qty[item.product_name] += item.quantity
+        if product_qty:
+            top_name, top_qty = max(product_qty.items(), key=lambda kv: kv[1])
+            most_ordered_product = {"product_name": top_name, "quantity": top_qty}
+
+    return {
+        "orders_total": len(orders_in_range),
+        "orders_active": sum(1 for o in orders_in_range if o.status == "active"),
+        "orders_completed": sum(1 for o in orders_in_range if o.status == "completed"),
+        "orders_cancelled": sum(1 for o in orders_in_range if o.status == "cancelled"),
+        "spending_all_time": spending_total,
+        "savings_all_time": savings_total,
+        "average_order_value": average_order_value,
+        "activity_last_7_days": buckets,
+        "favorite_farm": favorite_farm,
+        "most_ordered_product": most_ordered_product,
+    }
+
+
+def _empty_activity_buckets() -> list[dict]:
+    today = datetime.utcnow().date()
+    return [
+        {"date": (today - timedelta(days=offset)).isoformat(), "order_count": 0, "amount": 0.0}
+        for offset in range(6, -1, -1)
+    ]

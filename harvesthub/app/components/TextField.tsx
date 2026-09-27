@@ -13,12 +13,13 @@ export function TextField({ style, error, ...props }: Props) {
 }
 
 const styles = StyleSheet.create({
-  wrap: { marginBottom: spacing.md },
+  wrap: { marginBottom: spacing.md + spacing.xs },
   input: {
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radius.sm,
-    padding: 14,
+    paddingVertical: 15,
+    paddingHorizontal: 14,
     color: colors.text,
     backgroundColor: colors.surface,
   },

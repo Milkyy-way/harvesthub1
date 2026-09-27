@@ -8,6 +8,8 @@ class CustomerProfileOut(BaseModel):
     address_zip: str
     latitude: Optional[float]
     longitude: Optional[float]
+    dietary_preferences: list[str]
+    produce_interests: list[str]
 
     class Config:
         from_attributes = True

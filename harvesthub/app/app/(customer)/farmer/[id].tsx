@@ -1,13 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, FlatList, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, FlatList, ActivityIndicator, Pressable, StyleSheet } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { colors, spacing } from '../../../constants/theme';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { colors, spacing, radius } from '../../../constants/theme';
 import { apiClient } from '../../../lib/apiClient';
+import { useDebouncedValue } from '../../../hooks/useDebouncedValue';
 import { FarmerDetailHeader } from '../../../components/customer/FarmerDetailHeader';
 import { CategoryRail } from '../../../components/customer/CategoryRail';
+import { SearchBar } from '../../../components/customer/SearchBar';
 import { ProductCard } from '../../../components/customer/ProductCard';
+import { ProductCardGrid } from '../../../components/customer/ProductCardGrid';
 import { CartTotalBar } from '../../../components/customer/CartTotalBar';
 import type { Category, CartActionResponse, FarmerDetail, ProductItem } from '../../../types/database';
+
+type ViewMode = 'list' | 'grid';
 
 export default function FarmerDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -24,6 +30,9 @@ export default function FarmerDetailScreen() {
 
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [pendingProductId, setPendingProductId] = useState<string | null>(null);
+  const [searchText, setSearchText] = useState('');
+  const debouncedSearch = useDebouncedValue(searchText, 300);
+  const [viewMode, setViewMode] = useState<ViewMode>('list');
 
   useEffect(() => {
     if (!id) return;
@@ -91,9 +100,13 @@ export default function FarmerDetailScreen() {
   }, [allCategories, products]);
 
   const displayedProducts = useMemo(() => {
-    const filtered = selectedCategory ? products.filter((p) => p.category_slug === selectedCategory) : products;
+    let filtered = selectedCategory ? products.filter((p) => p.category_slug === selectedCategory) : products;
+    const trimmedSearch = debouncedSearch.trim().toLowerCase();
+    if (trimmedSearch) {
+      filtered = filtered.filter((p) => p.name.toLowerCase().includes(trimmedSearch));
+    }
     return [...filtered].sort((a, b) => a.name.localeCompare(b.name));
-  }, [products, selectedCategory]);
+  }, [products, selectedCategory, debouncedSearch]);
 
   const cartTotal = useMemo(() => products.reduce((sum, p) => sum + p.price * p.cart_quantity, 0), [products]);
   const cartCount = useMemo(() => products.reduce((sum, p) => sum + p.cart_quantity, 0), [products]);
@@ -154,28 +167,71 @@ export default function FarmerDetailScreen() {
     );
   }
 
+  const trimmedSearch = debouncedSearch.trim();
+  const emptyMessage = productsError
+    ? productsError
+    : trimmedSearch
+      ? `No products match "${trimmedSearch}".`
+      : 'No products available right now.';
+
   return (
     <View style={styles.container}>
       <FlatList
+        // Forces a remount when the column count changes — FlatList can't
+        // change numColumns on a mounted instance (see React Native's own
+        // warning on this); this is the standard workaround.
+        key={viewMode}
         data={displayedProducts}
         keyExtractor={(item) => item.id}
         style={styles.list}
+        numColumns={viewMode === 'grid' ? 2 : 1}
+        columnWrapperStyle={viewMode === 'grid' ? styles.gridRow : undefined}
         ListHeaderComponent={
           <>
             <FarmerDetailHeader farmer={farmer} />
-            {farmCategories.length > 0 ? (
-              <CategoryRail categories={farmCategories} selectedSlug={selectedCategory} onSelect={setSelectedCategory} />
-            ) : null}
+            <SearchBar value={searchText} onChangeText={setSearchText} placeholder="Search this farm's products" />
+            <View style={styles.toolsRow}>
+              <View style={styles.categoryRailWrap}>
+                {farmCategories.length > 0 ? (
+                  <CategoryRail categories={farmCategories} selectedSlug={selectedCategory} onSelect={setSelectedCategory} />
+                ) : null}
+              </View>
+              <View style={styles.viewToggle}>
+                <Pressable
+                  style={[styles.viewToggleButton, viewMode === 'list' && styles.viewToggleButtonActive]}
+                  onPress={() => setViewMode('list')}
+                  hitSlop={6}
+                >
+                  <MaterialIcons name="view-agenda" size={17} color={viewMode === 'list' ? colors.white : colors.textMuted} />
+                </Pressable>
+                <Pressable
+                  style={[styles.viewToggleButton, viewMode === 'grid' && styles.viewToggleButtonActive]}
+                  onPress={() => setViewMode('grid')}
+                  hitSlop={6}
+                >
+                  <MaterialIcons name="grid-view" size={16} color={viewMode === 'grid' ? colors.white : colors.textMuted} />
+                </Pressable>
+              </View>
+            </View>
           </>
         }
-        renderItem={({ item }) => (
-          <ProductCard
-            product={item}
-            pending={pendingProductId === item.id}
-            onIncrement={() => handleIncrement(item)}
-            onDecrement={() => handleDecrement(item)}
-          />
-        )}
+        renderItem={({ item }) =>
+          viewMode === 'grid' ? (
+            <ProductCardGrid
+              product={item}
+              pending={pendingProductId === item.id}
+              onIncrement={() => handleIncrement(item)}
+              onDecrement={() => handleDecrement(item)}
+            />
+          ) : (
+            <ProductCard
+              product={item}
+              pending={pendingProductId === item.id}
+              onIncrement={() => handleIncrement(item)}
+              onDecrement={() => handleDecrement(item)}
+            />
+          )
+        }
         contentContainerStyle={styles.listContent}
         ListEmptyComponent={
           loadingProducts ? (
@@ -184,7 +240,7 @@ export default function FarmerDetailScreen() {
             </View>
           ) : (
             <View style={styles.center}>
-              <Text style={styles.messageText}>{productsError ?? 'No products available right now.'}</Text>
+              <Text style={styles.messageText}>{emptyMessage}</Text>
             </View>
           )
         }
@@ -200,4 +256,18 @@ const styles = StyleSheet.create({
   listContent: { paddingBottom: spacing.xl },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
   messageText: { color: colors.textMuted, fontSize: 14, textAlign: 'center' },
+  toolsRow: { flexDirection: 'row', alignItems: 'center', paddingRight: spacing.lg, marginBottom: spacing.sm },
+  categoryRailWrap: { flex: 1 },
+  viewToggle: {
+    flexDirection: 'row',
+    gap: 2,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.pill,
+    padding: 3,
+  },
+  viewToggleButton: { width: 30, height: 30, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' },
+  viewToggleButtonActive: { backgroundColor: colors.primary },
+  gridRow: { paddingHorizontal: spacing.lg, gap: spacing.sm },
 });

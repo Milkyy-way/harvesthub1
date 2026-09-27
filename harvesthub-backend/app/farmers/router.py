@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.customers.service import get_current_customer
 from app.farmers import service
-from app.farmers.schemas import FarmerFeedResponse, FarmerDetailOut
+from app.farmers.schemas import FarmerFeedResponse, FarmerDetailOut, FarmerSpotlightResponse
 
 router = APIRouter(prefix="/farmers", tags=["farmers"])
 
@@ -23,6 +23,20 @@ def read_farmer_feed(
         db, customer.latitude, customer.longitude, category, search, limit, offset
     )
     return {"items": items, "limit": limit, "offset": offset, "total": total}
+
+
+# Registered before /{farmer_id} for the same shadowing reason as /feed.
+@router.get("/spotlight", response_model=FarmerSpotlightResponse)
+def read_farmer_spotlight(
+    limit: int = Query(6, ge=1, le=20),
+    db: Session = Depends(get_db),
+    customer=Depends(get_current_customer),
+):
+    if customer.latitude is None or customer.longitude is None:
+        raise HTTPException(status_code=422, detail="Your delivery address couldn't be located yet")
+
+    items = service.get_spotlight_farmers(db, customer.latitude, customer.longitude, limit)
+    return {"items": items}
 
 
 # Registered after /feed — a path-param route declared first would shadow

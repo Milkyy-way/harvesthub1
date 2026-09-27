@@ -2,12 +2,15 @@ import { View, Text, Pressable, ActivityIndicator, StyleSheet } from 'react-nati
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { colors, spacing, radius } from '../../constants/theme';
 import type { StoreOrder } from '../../types/orders';
+import { RatingStars } from './RatingStars';
 
 type Props = {
   storeOrder: StoreOrder;
   busy: boolean;
   onCancel: () => void;
   onMarkReceived: () => void;
+  onRate: (rating: number) => void;
+  ratingBusy: boolean;
 };
 
 const STATUS_LABELS: Record<StoreOrder['status'], string> = {
@@ -24,7 +27,7 @@ const STATUS_COLORS: Record<StoreOrder['status'], string> = {
   cancelled: colors.danger,
 };
 
-export function OrderStoreSection({ storeOrder, busy, onCancel, onMarkReceived }: Props) {
+export function OrderStoreSection({ storeOrder, busy, onCancel, onMarkReceived, onRate, ratingBusy }: Props) {
   const addressLine =
     storeOrder.fulfillment_method === 'pickup'
       ? [storeOrder.pickup_address_street, storeOrder.pickup_address_city, storeOrder.pickup_address_state, storeOrder.pickup_address_zip]
@@ -89,6 +92,19 @@ export function OrderStoreSection({ storeOrder, busy, onCancel, onMarkReceived }
         <BreakdownLine label="Total" value={storeOrder.total} bold />
         {storeOrder.refunded_amount > 0 ? <BreakdownLine label="Refunded" value={-storeOrder.refunded_amount} highlight /> : null}
       </View>
+
+      {storeOrder.status === 'completed' ? (
+        <View style={styles.ratingRow}>
+          <Text style={styles.ratingLabel}>
+            {storeOrder.my_rating ? 'Your rating' : 'Rate this farm'}
+          </Text>
+          {ratingBusy ? (
+            <ActivityIndicator size="small" color={colors.accent} />
+          ) : (
+            <RatingStars value={storeOrder.my_rating ?? 0} onSelect={onRate} size={20} />
+          )}
+        </View>
+      ) : null}
 
       {canCancel || canMarkReceived ? (
         <View style={styles.actionsRow}>
@@ -155,6 +171,16 @@ const styles = StyleSheet.create({
   breakdownValueBold: { fontSize: 15, fontWeight: '700', color: colors.text },
   breakdownValueHighlight: { color: colors.danger },
   divider: { height: 1, backgroundColor: colors.border, marginVertical: spacing.xs },
+  ratingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: spacing.sm,
+    paddingTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  ratingLabel: { fontSize: 13, fontWeight: '600', color: colors.text },
   actionsRow: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm },
   cancelButton: {
     flex: 1,

@@ -19,6 +19,7 @@ export default function OrderDetailScreen() {
   const [error, setError] = useState<string | null>(null);
   const [busyStoreOrderId, setBusyStoreOrderId] = useState<string | null>(null);
   const [cancellingOrder, setCancellingOrder] = useState(false);
+  const [ratingStoreOrderId, setRatingStoreOrderId] = useState<string | null>(null);
 
   const loadOrder = useCallback(() => {
     if (!id) return;
@@ -74,6 +75,20 @@ export default function OrderDetailScreen() {
       Alert.alert('Could not update order', err?.response?.data?.detail ?? 'Please try again.');
     } finally {
       setBusyStoreOrderId(null);
+    }
+  };
+
+  const rateStore = async (storeOrderId: string, rating: number) => {
+    if (!order) return;
+    setRatingStoreOrderId(storeOrderId);
+    try {
+      const res = await apiClient.post<Order>(`/orders/${order.id}/store/${storeOrderId}/rating`, { rating });
+      setOrder(res.data);
+    } catch (err: any) {
+      console.warn('Could not submit rating:', err);
+      Alert.alert('Could not submit rating', err?.response?.data?.detail ?? 'Please try again.');
+    } finally {
+      setRatingStoreOrderId(null);
     }
   };
 
@@ -161,6 +176,8 @@ export default function OrderDetailScreen() {
             busy={busyStoreOrderId === storeOrder.id}
             onCancel={() => confirmCancelStore(storeOrder.id, storeOrder.farm_name)}
             onMarkReceived={() => markReceived(storeOrder.id)}
+            onRate={(rating) => rateStore(storeOrder.id, rating)}
+            ratingBusy={ratingStoreOrderId === storeOrder.id}
           />
         )}
         ListFooterComponent={

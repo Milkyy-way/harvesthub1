@@ -9,6 +9,22 @@ from app.core.models import Profile
 from app.farmers.models import FarmerProfile, FarmerCertification
 from app.products.models import Product
 from app.categories.models import Category
+from app.ratings import service as ratings_service
+
+# Spotlight ranking weights — a placeholder blend, not a researched
+# formula: rating matters slightly more than raw proximity (a spotlight is
+# meant to showcase good farms, not just the nearest ones), but nothing
+# here is tuned against real usage yet. Adjust freely.
+_SPOTLIGHT_RATING_WEIGHT = 0.6
+_SPOTLIGHT_PROXIMITY_WEIGHT = 0.4
+# A farmer with zero ratings yet gets this neutral score (slightly above
+# the 1-5 midpoint) rather than being penalized for simply being new —
+# distance ends up doing most of the ranking work until real ratings
+# accumulate.
+_SPOTLIGHT_NEUTRAL_RATING = 3.5
+# Smooths proximity into a 0-1 score with no hard cutoff radius — a farm
+# 10km away still gets half credit rather than being excluded outright.
+_SPOTLIGHT_PROXIMITY_DECAY_KM = 10.0
 
 
 def get_or_geocode_farmer(db: Session, farmer_id: str) -> FarmerProfile:
@@ -145,6 +161,55 @@ def list_farmer_feed(
     return results[offset : offset + limit], total
 
 
+def get_spotlight_farmers(
+    db: Session, customer_lat: float, customer_lon: float, limit: int
+) -> list[dict]:
+    """Ranks active farmers by a blend of collective rating and distance —
+    not distance alone (that's plain list_farmer_feed) and not rating
+    alone (a great farm across town shouldn't bury every nearby one)."""
+    farmers = (
+        db.query(FarmerProfile)
+        .join(Profile, Profile.id == FarmerProfile.id)
+        .filter(Profile.role == "farmer", Profile.status == "active")
+        .all()
+    )
+    if not farmers:
+        return []
+
+    summaries = ratings_service.get_rating_summaries(db, [f.id for f in farmers])
+
+    scored = []
+    for farmer in farmers:
+        if farmer.latitude is None or farmer.longitude is None:
+            farmer = get_or_geocode_farmer(db, farmer.id)
+            if farmer is None or farmer.latitude is None:
+                continue
+
+        distance = haversine_km(customer_lat, customer_lon, farmer.latitude, farmer.longitude)
+        avg_rating, rating_count = summaries.get(farmer.id, (None, 0))
+
+        rating_score = ((avg_rating if avg_rating is not None else _SPOTLIGHT_NEUTRAL_RATING) - 1) / 4
+        proximity_score = 1 / (1 + distance / _SPOTLIGHT_PROXIMITY_DECAY_KM)
+        score = _SPOTLIGHT_RATING_WEIGHT * rating_score + _SPOTLIGHT_PROXIMITY_WEIGHT * proximity_score
+
+        scored.append(
+            {
+                "id": str(farmer.id),
+                "farm_name": farmer.farm_name,
+                "photo_url": farmer.photo_url,
+                "distance_km": round(distance, 2),
+                "average_rating": avg_rating,
+                "rating_count": rating_count,
+                "_score": score,
+            }
+        )
+
+    scored.sort(key=lambda r: r["_score"], reverse=True)
+    for r in scored:
+        del r["_score"]
+    return scored[:limit]
+
+
 def get_farmer_detail(
     db: Session,
     farmer_id: str,
@@ -174,6 +239,7 @@ def get_farmer_detail(
     certifications = (
         db.query(FarmerCertification).filter(FarmerCertification.farmer_id == farmer_id).all()
     )
+    average_rating, rating_count = ratings_service.get_farmer_rating_summary(db, farmer.id)
 
     return {
         "id": str(farmer.id),
@@ -185,6 +251,8 @@ def get_farmer_detail(
         "distance_km": distance,
         "farm_types": farmer.farm_types or [],
         "years_in_operation": farmer.years_in_operation,
+        "average_rating": average_rating,
+        "rating_count": rating_count,
         "certifications": [
             {"cert_type": c.cert_type, "cert_name": c.cert_name} for c in certifications
         ],

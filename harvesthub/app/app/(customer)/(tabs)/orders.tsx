@@ -1,12 +1,14 @@
 import { useCallback, useState } from 'react';
-import { View, Text, Pressable, FlatList, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, Pressable, FlatList, ActivityIndicator, Alert, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, spacing, radius } from '../../../constants/theme';
 import { apiClient } from '../../../lib/apiClient';
+import { HeroShell } from '../../../components/customer/HeroShell';
+import { DateRangeFilter } from '../../../components/customer/DateRangeFilter';
 import { OrderCard } from '../../../components/customer/OrderCard';
-import type { Order, OrderStatus } from '../../../types/orders';
+import type { Order, OrderStatus, ReorderResponse } from '../../../types/orders';
+import type { DashboardRangeKey } from '../../../types/dashboard';
 
 const TABS: { key: OrderStatus; label: string }[] = [
   { key: 'active', label: 'Active' },
@@ -22,9 +24,9 @@ const EMPTY_MESSAGES: Record<OrderStatus, string> = {
 
 export default function CustomerOrders() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
 
   const [activeTab, setActiveTab] = useState<OrderStatus>('active');
+  const [range, setRange] = useState<DashboardRangeKey>('all');
   const [ordersByTab, setOrdersByTab] = useState<Record<OrderStatus, Order[]>>({
     active: [],
     completed: [],
@@ -32,11 +34,12 @@ export default function CustomerOrders() {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [reorderingId, setReorderingId] = useState<string | null>(null);
 
-  const loadOrders = useCallback((tab: OrderStatus) => {
+  const loadOrders = useCallback((tab: OrderStatus, forRange: DashboardRangeKey) => {
     setLoading(true);
     apiClient
-      .get<Order[]>('/orders', { params: { status: tab } })
+      .get<Order[]>('/orders', { params: { status: tab, range: forRange } })
       .then((res) => {
         setOrdersByTab((prev) => ({ ...prev, [tab]: res.data }));
         setError(null);
@@ -50,39 +53,66 @@ export default function CustomerOrders() {
 
   useFocusEffect(
     useCallback(() => {
-      loadOrders(activeTab);
-      // Reload only the tab currently in view on each focus — switching
-      // tabs triggers its own load below, so this doesn't need activeTab
-      // in its deps beyond what's already captured at focus time.
+      loadOrders(activeTab, range);
+      // Reload only the tab/range currently in view on each focus —
+      // switching either triggers its own load below.
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [loadOrders])
   );
 
   const handleSelectTab = (tab: OrderStatus) => {
     setActiveTab(tab);
-    loadOrders(tab);
+    loadOrders(tab, range);
+  };
+
+  const handleChangeRange = (next: DashboardRangeKey) => {
+    setRange(next);
+    loadOrders(activeTab, next);
+  };
+
+  const handleRebook = async (order: Order) => {
+    setReorderingId(order.id);
+    try {
+      const res = await apiClient.post<ReorderResponse>(`/orders/${order.id}/reorder`);
+      const { added_count, skipped_count } = res.data;
+      if (added_count === 0) {
+        Alert.alert('Nothing to add', "None of this order's items are available right now.");
+        return;
+      }
+      const message =
+        skipped_count > 0
+          ? `Added what's still available to your cart — ${skipped_count} item${skipped_count === 1 ? '' : 's'} couldn't be fully added (out of stock or no longer offered).`
+          : 'Added to your cart.';
+      Alert.alert('Rebooked', message, [{ text: 'View Cart', onPress: () => router.push('/(customer)/cart') }]);
+    } catch (err: any) {
+      console.warn('Could not rebook order:', err);
+      Alert.alert('Could not rebook', err?.response?.data?.detail ?? 'Please try again.');
+    } finally {
+      setReorderingId(null);
+    }
   };
 
   const orders = ordersByTab[activeTab];
 
   return (
     <View style={styles.container}>
-      <View style={[styles.header, { paddingTop: insets.top + spacing.md }]}>
-        <Text style={styles.title}>Your Orders</Text>
-        <View style={styles.tabRow}>
-          {TABS.map((tab) => {
-            const isActive = tab.key === activeTab;
-            return (
-              <Pressable
-                key={tab.key}
-                style={[styles.tab, isActive && styles.tabActive]}
-                onPress={() => handleSelectTab(tab.key)}
-              >
-                <Text style={[styles.tabLabel, isActive && styles.tabLabelActive]}>{tab.label}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
+      <HeroShell headline="Explore your order activity">
+        <DateRangeFilter value={range} onChange={handleChangeRange} />
+      </HeroShell>
+
+      <View style={styles.tabRow}>
+        {TABS.map((tab) => {
+          const isActive = tab.key === activeTab;
+          return (
+            <Pressable
+              key={tab.key}
+              style={[styles.tab, isActive && styles.tabActive]}
+              onPress={() => handleSelectTab(tab.key)}
+            >
+              <Text style={[styles.tabLabel, isActive && styles.tabLabelActive]}>{tab.label}</Text>
+            </Pressable>
+          );
+        })}
       </View>
 
       {loading && orders.length === 0 ? (
@@ -94,8 +124,15 @@ export default function CustomerOrders() {
           data={orders}
           keyExtractor={(order) => order.id}
           contentContainerStyle={orders.length === 0 ? styles.emptyContent : styles.listContent}
+          ItemSeparatorComponent={() => <View style={styles.divider} />}
           renderItem={({ item }) => (
-            <OrderCard order={item} onPress={() => router.push({ pathname: '/(customer)/orders/[id]', params: { id: item.id } })} />
+            <OrderCard
+              order={item}
+              onPress={() => router.push({ pathname: '/(customer)/orders/[id]', params: { id: item.id } })}
+              showRebook={activeTab !== 'active'}
+              onRebook={() => handleRebook(item)}
+              rebooking={reorderingId === item.id}
+            />
           )}
           ListEmptyComponent={
             <View style={styles.center}>
@@ -110,9 +147,7 @@ export default function CustomerOrders() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  header: { paddingHorizontal: spacing.lg, paddingBottom: spacing.md },
-  title: { fontSize: 22, fontWeight: '700', color: colors.text, marginBottom: spacing.md },
-  tabRow: { flexDirection: 'row', gap: spacing.xs },
+  tabRow: { flexDirection: 'row', gap: spacing.xs, paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
   tab: {
     flex: 1,
     alignItems: 'center',
@@ -125,7 +160,8 @@ const styles = StyleSheet.create({
   tabActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   tabLabel: { fontSize: 13, fontWeight: '600', color: colors.textMuted },
   tabLabelActive: { color: colors.white },
-  listContent: { paddingTop: spacing.sm, paddingBottom: spacing.xl },
+  listContent: { paddingBottom: spacing.xl },
+  divider: { height: 1, backgroundColor: colors.border, marginHorizontal: spacing.lg },
   emptyContent: { flexGrow: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
   emptyText: { color: colors.textMuted, fontSize: 14, textAlign: 'center' },

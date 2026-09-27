@@ -1,5 +1,19 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Literal, Optional
+
+class HarvestPickOut(BaseModel):
+    id: str
+    name: str
+    price: float
+    unit: str
+    image_url: Optional[str]
+    farmer_id: str
+    farm_name: str
+    distance_km: float
+    tag: Optional[Literal["farmer_favorite", "limited", "just_picked"]]
+
+class HarvestPicksResponse(BaseModel):
+    items: list[HarvestPickOut]
 
 class ProductOut(BaseModel):
     id: str

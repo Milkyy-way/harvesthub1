@@ -2,7 +2,11 @@ import React, { createContext, useCallback, useContext, useState } from 'react';
 import type { DeliveryAddressDraft, FarmFulfillment, FulfillmentMethod } from '../types/checkout';
 
 const EMPTY_ADDRESS: DeliveryAddressDraft = { street: '', city: '', state: '', zip: '' };
-const EMPTY_FULFILLMENT: FarmFulfillment = { method: null, deliveryAddress: EMPTY_ADDRESS };
+// Delivery has no button to pick it anymore (see FulfillmentSelector.tsx),
+// so every farm defaults straight to 'pickup' — nothing left to tap before
+// checkout is ready. The 'delivery' value stays real and functional
+// end to end for whenever the button comes back.
+const EMPTY_FULFILLMENT: FarmFulfillment = { method: 'pickup', deliveryAddress: EMPTY_ADDRESS };
 
 type CheckoutDraftContextType = {
   fulfillmentByFarm: Record<string, FarmFulfillment>;
@@ -29,7 +33,7 @@ export function CheckoutDraftProvider({ children }: { children: React.ReactNode 
   const ensureFarm = useCallback((farmerId: string, defaultAddress: DeliveryAddressDraft) => {
     setFulfillmentByFarm((prev) => {
       if (prev[farmerId]) return prev;
-      return { ...prev, [farmerId]: { method: null, deliveryAddress: defaultAddress } };
+      return { ...prev, [farmerId]: { method: 'pickup', deliveryAddress: defaultAddress } };
     });
   }, []);
 

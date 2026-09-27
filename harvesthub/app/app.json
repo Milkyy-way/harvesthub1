@@ -51,7 +51,8 @@
           "merchantIdentifier": "merchant.com.harvesthub.app",
           "enableGooglePay": true
         }
-      ]
+      ],
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,

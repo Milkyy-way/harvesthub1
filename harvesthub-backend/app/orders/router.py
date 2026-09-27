@@ -4,7 +4,8 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.customers.service import get_current_customer
 from app.orders import service
-from app.orders.schemas import CreateOrderRequest, CreateOrderResponse, OrderOut, CancelRequest
+from app.orders.schemas import CreateOrderRequest, CreateOrderResponse, OrderOut, CancelRequest, ReorderResponse
+from app.ratings.schemas import SubmitRatingRequest
 
 router = APIRouter(prefix="/orders", tags=["orders"])
 
@@ -18,10 +19,11 @@ def place_order(payload: CreateOrderRequest, db: Session = Depends(get_db), cust
 @router.get("", response_model=list[OrderOut])
 def read_orders(
     status: Optional[str] = Query(None),
+    range: Optional[str] = Query(None, description="week | month | 3m | 6m | all"),
     db: Session = Depends(get_db),
     customer=Depends(get_current_customer),
 ):
-    return service.list_orders(db, str(customer.id), status)
+    return service.list_orders(db, str(customer.id), status, range)
 
 
 @router.get("/{order_id}", response_model=OrderOut)
@@ -64,3 +66,19 @@ def complete_store(
     customer=Depends(get_current_customer),
 ):
     return service.mark_store_order_completed(db, str(customer.id), order_id, store_order_id)
+
+
+@router.post("/{order_id}/store/{store_order_id}/rating", response_model=OrderOut)
+def rate_store(
+    order_id: str,
+    store_order_id: str,
+    payload: SubmitRatingRequest,
+    db: Session = Depends(get_db),
+    customer=Depends(get_current_customer),
+):
+    return service.submit_store_order_rating(db, str(customer.id), order_id, store_order_id, payload)
+
+
+@router.post("/{order_id}/reorder", response_model=ReorderResponse)
+def reorder(order_id: str, db: Session = Depends(get_db), customer=Depends(get_current_customer)):
+    return service.reorder(db, str(customer.id), order_id)

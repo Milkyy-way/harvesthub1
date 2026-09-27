@@ -25,6 +25,12 @@ export function FulfillmentSelector({
     <View style={styles.container}>
       <Text style={styles.label}>How would you like to get this order?</Text>
 
+      {/* Delivery is a real, working option end to end (backend, pricing,
+          checkout) — just not offered in the UI for now, per the Phase 1
+          pickup-only decision. Hiding the button, not the branch below
+          that renders a delivery address form if method ever were
+          'delivery' — that stays intact for whenever this button comes
+          back. */}
       <View style={styles.toggleRow}>
         <Pressable
           style={[styles.toggle, method === 'pickup' && styles.toggleActive]}
@@ -32,13 +38,6 @@ export function FulfillmentSelector({
         >
           <MaterialIcons name="storefront" size={16} color={method === 'pickup' ? colors.white : colors.textMuted} />
           <Text style={[styles.toggleText, method === 'pickup' && styles.toggleTextActive]}>Pickup</Text>
-        </Pressable>
-        <Pressable
-          style={[styles.toggle, method === 'delivery' && styles.toggleActive]}
-          onPress={() => onSelectMethod('delivery')}
-        >
-          <MaterialIcons name="local-shipping" size={16} color={method === 'delivery' ? colors.white : colors.textMuted} />
-          <Text style={[styles.toggleText, method === 'delivery' && styles.toggleTextActive]}>Delivery</Text>
         </Pressable>
       </View>
 

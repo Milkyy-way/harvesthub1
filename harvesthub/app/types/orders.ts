@@ -23,6 +23,7 @@ export interface StoreOrder {
   id: string;
   farmer_id: string;
   farm_name: string;
+  photo_url: string | null;
   fulfillment_method: FulfillmentMethod;
   pickup_address_street: string | null;
   pickup_address_city: string | null;
@@ -42,6 +43,7 @@ export interface StoreOrder {
   refunded_amount: number;
   status: StoreOrderStatus;
   items: OrderLineItem[];
+  my_rating: number | null;
 }
 
 export interface OrderPayment {
@@ -84,4 +86,10 @@ export interface CreateOrderRequest {
 export interface CreateOrderResponse {
   order: Order;
   client_secret: string | null;
+}
+
+export interface ReorderResponse {
+  added_count: number;
+  skipped_count: number;
+  cart_item_count: number;
 }

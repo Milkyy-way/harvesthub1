@@ -5,6 +5,9 @@ import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import { StripeProvider } from '@stripe/stripe-react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import AntDesign from '@expo/vector-icons/AntDesign';
+import { Newsreader_600SemiBold, Newsreader_700Bold } from '@expo-google-fonts/newsreader';
+import { Manrope_800ExtraBold } from '@expo-google-fonts/manrope';
 import { AuthProvider, useAuth } from '../contexts/AuthContext';
 import { colors } from '../constants/theme';
 
@@ -32,6 +35,7 @@ function RootNavigation() {
     if (loading) return;
 
     const inAuthGroup = segments[0] === '(auth)';
+    const inRoleSetup = segments[0] === '(role-setup)';
     const inFarmerOnboarding = segments[0] === '(farmer)' && segments[1] === 'onboarding';
     const onPendingReviewScreen = segments[0] === '(farmer)' && segments[1] === 'pending-review';
     const onAddPhotoScreen = segments[0] === '(farmer)' && segments[1] === 'add-photo';
@@ -44,6 +48,16 @@ function RootNavigation() {
     }
 
     if (!session || !profile) return;
+
+    if (!profile.role) {
+      // Signed in (password or OAuth) but hasn't picked customer/farmer
+      // yet — status is 'pending_role_selection' (see
+      // supabase/migrations/0018_oauth_role_selection.sql). This is the
+      // one case where a session exists but nothing else does — every
+      // other branch below assumes profile.role is set.
+      if (!inRoleSetup) router.replace('/(role-setup)/role');
+      return;
+    }
 
     if (profile.role === 'farmer' && profile.status !== 'active') {
       // Self-service signup, gated access: a farmer can log in as soon as
@@ -68,9 +82,14 @@ function RootNavigation() {
       return;
     }
 
-    if (inAuthGroup) {
-      // Logged in but still sitting on an auth screen (e.g. just finished
-      // signing up) — route into the correct experience for their role.
+    if (inAuthGroup || inRoleSetup) {
+      // Logged in but still sitting on an auth or role-setup screen (just
+      // finished signing up, or just finished picking a role/filling in
+      // details) — route into the correct experience for their role. Without
+      // the inRoleSetup half of this check, completing role-setup had
+      // nothing that ever navigated away from it — the screen would just
+      // sit there indefinitely even though the profile update itself had
+      // already succeeded.
       router.replace(profile.role === 'farmer' ? '/(farmer)' : '/(customer)/(tabs)');
     } else if (profile.role === 'farmer' && (inFarmerOnboarding || onPendingReviewScreen || onAddPhotoScreen)) {
       // An approved, photo-complete farmer landing back on the wizard/
@@ -91,7 +110,13 @@ function RootNavigation() {
 }
 
 export default function RootLayout() {
-  const [fontsLoaded] = useFonts({ ...MaterialIcons.font });
+  const [fontsLoaded] = useFonts({
+    ...MaterialIcons.font,
+    ...AntDesign.font,
+    Newsreader_600SemiBold,
+    Newsreader_700Bold,
+    Manrope_800ExtraBold,
+  });
 
   useEffect(() => {
     if (fontsLoaded) SplashScreen.hideAsync();

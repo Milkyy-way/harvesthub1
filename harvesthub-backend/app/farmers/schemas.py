@@ -14,6 +14,17 @@ class FarmerFeedResponse(BaseModel):
     offset: int
     total: int
 
+class FarmerSpotlightCard(BaseModel):
+    id: str
+    farm_name: str
+    photo_url: Optional[str]
+    distance_km: float
+    average_rating: Optional[float]
+    rating_count: int
+
+class FarmerSpotlightResponse(BaseModel):
+    items: list[FarmerSpotlightCard]
+
 class CertificationOut(BaseModel):
     cert_type: str
     cert_name: str
@@ -28,4 +39,6 @@ class FarmerDetailOut(BaseModel):
     distance_km: Optional[float]
     farm_types: list[str]
     years_in_operation: Optional[int]
+    average_rating: Optional[float]
+    rating_count: int
     certifications: list[CertificationOut]

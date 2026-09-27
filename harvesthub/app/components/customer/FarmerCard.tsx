@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { colors, spacing, radius } from '../../constants/theme';
+import { colors, spacing, radius, fonts } from '../../constants/theme';
 import type { FarmerFeedCard as FarmerFeedCardType } from '../../types/database';
 import { formatDistance } from './formatDistance';
 
@@ -70,7 +70,7 @@ const styles = StyleSheet.create({
   photo: { width: '100%', height: CARD_IMAGE_HEIGHT, backgroundColor: colors.background },
   photoFallback: { alignItems: 'center', justifyContent: 'center' },
   info: { padding: spacing.md },
-  name: { fontSize: 17, fontWeight: '700', color: colors.text, marginBottom: 6 },
+  name: { fontFamily: fonts.headline, fontSize: 17, color: colors.text, marginBottom: 6 },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   distance: { fontSize: 13, color: colors.textMuted },
   matched: { fontSize: 12, color: colors.primary, marginTop: 6, textTransform: 'capitalize', fontWeight: '500' },

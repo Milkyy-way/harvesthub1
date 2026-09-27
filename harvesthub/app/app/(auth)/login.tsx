@@ -1,13 +1,21 @@
 import { useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
-import { Link } from 'expo-router';
+import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, Alert, KeyboardAvoidingView, Platform } from 'react-native';
+import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import AntDesign from '@expo/vector-icons/AntDesign';
 import { supabase } from '../../lib/supabase';
-import { colors, spacing, radius } from '../../constants/theme';
+import { signInWithGoogle, isFirstEverSignIn } from '../../lib/googleAuth';
+import { colors, spacing, radius, fonts } from '../../constants/theme';
+import { Logo } from '../../components/Logo';
 
 export default function Login() {
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleLogin = async () => {
@@ -32,9 +40,47 @@ export default function Login() {
     // session and redirects to the right role's home screen automatically.
   };
 
+  const handleGoogleSignIn = async () => {
+    setError(null);
+    setGoogleLoading(true);
+    try {
+      const session = await signInWithGoogle();
+      if (!session) return; // cancelled the Google sheet — nothing to show
+
+      if (isFirstEverSignIn(session)) {
+        // This Google account has never signed in here before — the Login
+        // screen shouldn't silently create one (that's what Sign Up is
+        // for). Undo it and send them there instead.
+        await supabase.auth.signOut();
+        Alert.alert(
+          "We don't have that account yet",
+          'No HarvestHub account is linked to that Google email. Sign up first, or log in with the email and password you already registered.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Sign Up', onPress: () => router.push('/(auth)/signup') },
+          ]
+        );
+        return;
+      }
+      // An existing account (whether fully set up or still finishing
+      // role-setup) — RootLayout's own auth listener takes it from here,
+      // same as the password path above.
+    } catch (err: any) {
+      console.warn('Could not sign in with Google:', err);
+      setError(err?.message ?? 'Could not sign in with Google.');
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-      <View style={styles.container}>
+      <View style={[styles.container, { paddingTop: insets.top + spacing.lg }]}>
+        <View style={styles.brandRow}>
+          <Logo size={40} />
+          <Text style={styles.brandText}>HarvestHub</Text>
+        </View>
+
         <Text style={styles.title}>Welcome back</Text>
         <Text style={styles.subtitle}>Log in to your HarvestHub account</Text>
 
@@ -64,25 +110,44 @@ export default function Login() {
           {loading ? <ActivityIndicator color={colors.white} /> : <Text style={styles.buttonText}>Log in</Text>}
         </Pressable>
 
-        <Link href="/(auth)/signup" style={styles.link}>
-          <Text style={styles.linkText}>Don&apos;t have an account? Sign up</Text>
-        </Link>
+        <Pressable style={styles.signupButton} onPress={() => router.push('/(auth)/signup')}>
+          <Text style={styles.signupButtonText}>Sign up</Text>
+        </Pressable>
+
+        <View style={styles.dividerRow}>
+          <View style={styles.dividerLine} />
+          <Text style={styles.dividerText}>or continue with</Text>
+          <View style={styles.dividerLine} />
+        </View>
+
+        <Pressable style={styles.googleButton} onPress={handleGoogleSignIn} disabled={googleLoading}>
+          {googleLoading ? (
+            <ActivityIndicator color={colors.text} />
+          ) : (
+            <>
+              <AntDesign name="google" size={17} color={colors.text} />
+              <Text style={styles.googleButtonText}>Continue with Google</Text>
+            </>
+          )}
+        </Pressable>
       </View>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background, padding: spacing.lg, justifyContent: 'center' },
-  title: { fontSize: 24, fontWeight: '600', color: colors.text, marginBottom: spacing.xs },
-  subtitle: { fontSize: 14, color: colors.textMuted, marginBottom: spacing.lg },
+  container: { flex: 1, backgroundColor: colors.background, paddingHorizontal: spacing.lg, paddingVertical: spacing.xl, justifyContent: 'center' },
+  brandRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.xl + spacing.sm, alignSelf: 'center' },
+  brandText: { fontFamily: fonts.brand, fontSize: 17, color: colors.text },
+  title: { fontFamily: fonts.headlineBold, fontSize: 24, color: colors.text, marginBottom: spacing.sm },
+  subtitle: { fontSize: 14, color: colors.textMuted, marginBottom: spacing.xl },
   error: { color: colors.danger, marginBottom: spacing.md, fontSize: 13 },
   input: {
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radius.sm,
     padding: 14,
-    marginBottom: spacing.md,
+    marginBottom: spacing.md + spacing.xs,
     color: colors.text,
     backgroundColor: colors.surface,
   },
@@ -91,9 +156,31 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     paddingVertical: 14,
     alignItems: 'center',
-    marginTop: spacing.sm,
+    marginTop: spacing.md,
   },
   buttonText: { color: colors.white, fontWeight: '600', fontSize: 15 },
-  link: { marginTop: spacing.lg, alignItems: 'center' },
-  linkText: { color: colors.primary, fontSize: 13 },
+  signupButton: {
+    borderWidth: 1,
+    borderColor: colors.primary,
+    borderRadius: radius.pill,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginTop: spacing.md,
+  },
+  signupButtonText: { color: colors.primary, fontWeight: '600', fontSize: 15 },
+  dividerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.xl, marginBottom: spacing.md + spacing.xs },
+  dividerLine: { flex: 1, height: 1, backgroundColor: colors.border },
+  dividerText: { fontSize: 12, color: colors.textMuted },
+  googleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.pill,
+    paddingVertical: 13,
+    backgroundColor: colors.surface,
+  },
+  googleButtonText: { color: colors.text, fontWeight: '600', fontSize: 14 },
 });

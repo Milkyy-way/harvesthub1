@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from app.promotions.models import PromoCode
 
@@ -26,7 +26,10 @@ def apply_promo(db: Session, farmer_id: str, code: str | None, subtotal: float) 
     if not promo:
         return 0.0, None, "Invalid promo code for this farm"
 
-    now = datetime.utcnow()
+    # starts_at/expires_at read back timezone-aware (the real column is
+    # timestamptz) — now must be tz-aware too, or this comparison throws
+    # (same bug class fixed in app/orders/service.py's dashboard summary).
+    now = datetime.now(timezone.utc)
     if promo.starts_at and now < promo.starts_at:
         return 0.0, None, "This promo code isn't active yet"
     if promo.expires_at and now > promo.expires_at:
