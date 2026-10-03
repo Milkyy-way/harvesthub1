@@ -22,7 +22,14 @@ def build_checkout_preview(db: Session, customer_id: str, groups: list[CheckoutG
         db.query(CartItem, Product, FarmerProfile)
         .join(Product, Product.id == CartItem.product_id)
         .join(FarmerProfile, FarmerProfile.id == Product.farmer_id)
-        .filter(CartItem.customer_id == customer_id, Product.farmer_id.in_(requested_farmer_ids))
+        # Hidden products are never priced or ordered, even if a stale cart
+        # still holds one (hiding also clears it from carts — see
+        # app/farmer_products/service.py::update_product).
+        .filter(
+            CartItem.customer_id == customer_id,
+            Product.farmer_id.in_(requested_farmer_ids),
+            Product.is_active.is_(True),
+        )
         .all()
     )
 

@@ -21,6 +21,9 @@ const MAPPING = {
   'chart.bar.fill': 'bar-chart',
   'bag.fill': 'shopping-bag',
   'person.fill': 'person',
+  'leaf.fill': 'eco',
+  'list.bullet.rectangle.fill': 'receipt-long',
+  'lock.fill': 'lock',
 } as IconMapping;
 
 /**

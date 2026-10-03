@@ -47,3 +47,18 @@ export async function uploadVerificationDocument(userId: string, docKey: string,
 
   return path;
 }
+
+// A short-lived link for the farmer to view one of their own private
+// documents (0006's storage policy lets a farmer read only their folder).
+export async function getVerificationDocumentUrl(path: string): Promise<string> {
+  const { data, error } = await supabase.storage.from(VERIFICATION_DOCS_BUCKET).createSignedUrl(path, 60);
+  if (error || !data) throw error ?? new Error('Could not open the document.');
+  return data.signedUrl;
+}
+
+// Best-effort cleanup (e.g. a certification the farmer removed) — a failed
+// delete only leaves an orphaned private file behind, so it never throws.
+export async function removeVerificationDocument(path: string): Promise<void> {
+  const { error } = await supabase.storage.from(VERIFICATION_DOCS_BUCKET).remove([path]);
+  if (error) console.warn('Could not remove verification document:', error.message);
+}

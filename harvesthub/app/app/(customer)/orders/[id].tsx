@@ -7,7 +7,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { colors, spacing, radius } from '../../../constants/theme';
 import { apiClient } from '../../../lib/apiClient';
 import { OrderStoreSection } from '../../../components/customer/OrderStoreSection';
-import type { Order } from '../../../types/orders';
+import type { Order, StoreOrder } from '../../../types/orders';
 
 export default function OrderDetailScreen() {
   const { id, justPlaced } = useLocalSearchParams<{ id: string; justPlaced?: string }>();
@@ -62,6 +62,23 @@ export default function OrderDetailScreen() {
     } finally {
       setBusyStoreOrderId(null);
     }
+  };
+
+  // Marking a cash order received also records that the cash changed hands
+  // (it lands on the farmer's payout ledger), so confirm before doing it.
+  const confirmMarkReceived = (storeOrder: StoreOrder) => {
+    if (order?.payment?.payment_method !== 'cash_on_pickup') {
+      markReceived(storeOrder.id);
+      return;
+    }
+    Alert.alert(
+      'Picked up and paid?',
+      `Confirm you picked up your ${storeOrder.farm_name} order and paid $${storeOrder.total.toFixed(2)} in cash.`,
+      [
+        { text: 'Not yet', style: 'cancel' },
+        { text: 'Yes, received', onPress: () => markReceived(storeOrder.id) },
+      ]
+    );
   };
 
   const markReceived = async (storeOrderId: string) => {
@@ -133,7 +150,9 @@ export default function OrderDetailScreen() {
     );
   }
 
-  const hasCancellableStore = order.store_orders.some((so) => so.status === 'pending_payment' || so.status === 'paid');
+  const hasCancellableStore = order.store_orders.some(
+    (so) => so.status === 'pending_payment' || so.status === 'paid' || so.status === 'ready_for_pickup'
+  );
 
   return (
     <View style={styles.container}>
@@ -173,9 +192,10 @@ export default function OrderDetailScreen() {
         renderItem={({ item: storeOrder }) => (
           <OrderStoreSection
             storeOrder={storeOrder}
+            paysAtPickup={order.payment?.payment_method === 'cash_on_pickup'}
             busy={busyStoreOrderId === storeOrder.id}
             onCancel={() => confirmCancelStore(storeOrder.id, storeOrder.farm_name)}
-            onMarkReceived={() => markReceived(storeOrder.id)}
+            onMarkReceived={() => confirmMarkReceived(storeOrder)}
             onRate={(rating) => rateStore(storeOrder.id, rating)}
             ratingBusy={ratingStoreOrderId === storeOrder.id}
           />

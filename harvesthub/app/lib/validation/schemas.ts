@@ -155,10 +155,13 @@ export const certificationEntrySchema = z.object({
 
 export type CertificationEntry = z.infer<typeof certificationEntrySchema>;
 
+// The document FILES aren't in this schema: a resumed or resubmitted
+// application may already have some stored from an earlier save, so the
+// application screen checks "picked now OR already uploaded" per document
+// itself. Certifications are optional (0022) — this only validates any new
+// ones being added.
 export const farmerVerificationSchema = z.object({
   businessLicenseNumber: z.string().trim().min(1, 'Business license number is required'),
-  businessLicenseFile: pickedFileSchema,
-  insuranceFile: pickedFileSchema,
   // Postgres CHECK constraints can't reference now() (not immutable), so
   // "not already expired" can only be enforced here, not in the DB.
   insuranceExpirationDate: z
@@ -166,14 +169,44 @@ export const farmerVerificationSchema = z.object({
     .trim()
     .regex(DATE_RE, 'Use format YYYY-MM-DD')
     .refine((value) => new Date(value).getTime() > Date.now(), 'Insurance must not already be expired'),
-  foodSafetyCertFile: pickedFileSchema.optional(),
-  certifications: z.array(certificationEntrySchema).min(1, 'Add at least one certification'),
-  govIdFile: pickedFileSchema,
-  landProofFile: pickedFileSchema,
+  certifications: z.array(certificationEntrySchema),
   referencesText: z.string().trim().optional(),
 });
 
 export type FarmerVerificationInput = z.infer<typeof farmerVerificationSchema>;
+
+// Farmer product editor (Farmer F2) — mirrors the backend's
+// FarmerProductCreate limits (app/farmer_products/schemas.py).
+export const farmerProductSchema = z.object({
+  name: z.string().trim().min(1, 'Name is required').max(120, 'Keep the name under 120 characters'),
+  description: z.string().trim().max(1000, 'Keep the description under 1000 characters'),
+  categorySlug: z.string({ message: 'Pick a category' }).min(1, 'Pick a category'),
+  price: z.coerce
+    .number('Enter a price')
+    .gt(0, 'Price must be more than $0')
+    .max(10000, 'Price is too high')
+    .refine((value) => Number(value.toFixed(2)) === value, 'Use at most 2 decimal places'),
+  unit: z.string().trim().min(1, 'Pick a unit').max(30, 'Keep the unit short'),
+  quantity: z.coerce.number('Enter a number').int('Whole numbers only').min(0, 'Can’t be negative').max(100000),
+});
+
+export type FarmerProductFormInput = z.infer<typeof farmerProductSchema>;
+
+// Farmer farm-profile editor (Farmer F6). Tax ID is deliberately not here —
+// it's verification data, changed through HarvestHub, not self-edited.
+export const FARM_BIO_MAX = 500;
+export const farmerProfileEditSchema = z.object({
+  farmName: z.string().trim().min(1, 'Farm name is required').max(80, 'Keep the farm name under 80 characters'),
+  bio: z.string().trim().max(FARM_BIO_MAX, `Keep it under ${FARM_BIO_MAX} characters`),
+  farmTypes: z.array(z.enum(valuesOf(FARM_TYPE_OPTIONS))).min(1, 'Select at least one farm type'),
+  yearsInOperation: z.coerce.number('Enter a number').int().min(0).max(150),
+  addressStreet: z.string().trim().min(1, 'Street address is required'),
+  addressCity: z.string().trim().min(1, 'City is required'),
+  addressState: z.string().trim().min(1, 'State is required'),
+  addressZip: zipSchema,
+  ownerName: z.string().trim().min(1, 'Your name is required'),
+  phone: phoneSchema,
+});
 
 // Flattens a ZodError into a single message per field (keyed by dotted path,
 // e.g. "confirmPassword" or "addressZip") for simple inline error display —

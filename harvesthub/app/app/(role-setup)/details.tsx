@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { View, Text, Pressable, ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform, StyleSheet } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -10,13 +9,13 @@ import { TagSelector } from '../../components/TagSelector';
 import { DIETARY_PREFERENCE_OPTIONS, PRODUCE_INTEREST_OPTIONS } from '../../lib/validation/schemas';
 import type { DietaryPreference, ProduceInterest } from '../../types/database';
 
-// Only ever reached with a session that already has an identity (Google
-// gave us name/email) but no role — this asks for whatever's still
-// missing instead of repeating the full signup form. Submits through
-// complete_profile_setup() (see supabase/migrations/0018_...), the one
-// place allowed to set role/status directly.
+// Only ever reached with a Google session that has an identity (name/email
+// came from Google) but no role yet. Google sign-up is customer-only —
+// farmers sign up with email/password (see 0022) — so this just asks for
+// whatever a customer account still needs. Submits through
+// complete_profile_setup() (0018/0022), the one place allowed to set
+// role/status directly.
 export default function RoleSetupDetails() {
-  const { role } = useLocalSearchParams<{ role: 'customer' | 'farmer' }>();
   const { profile, refreshProfile } = useAuth();
   const insets = useSafeAreaInsets();
 
@@ -28,11 +27,8 @@ export default function RoleSetupDetails() {
   const [addressZip, setAddressZip] = useState('');
   const [dietaryPreferences, setDietaryPreferences] = useState<DietaryPreference[]>([]);
   const [produceInterests, setProduceInterests] = useState<ProduceInterest[]>([]);
-  const [farmName, setFarmName] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-
-  const isFarmer = role === 'farmer';
 
   const handleSubmit = async () => {
     if (loading) return; // already submitting — a second tap while it's in flight must not fire this twice
@@ -41,27 +37,22 @@ export default function RoleSetupDetails() {
       setError('Enter your name and phone number.');
       return;
     }
-    if (!isFarmer && (!addressStreet.trim() || !addressCity.trim() || !addressState.trim() || !addressZip.trim())) {
+    if (!addressStreet.trim() || !addressCity.trim() || !addressState.trim() || !addressZip.trim()) {
       setError('Enter your full delivery/pickup address.');
-      return;
-    }
-    if (isFarmer && !farmName.trim()) {
-      setError('Enter your farm or business name.');
       return;
     }
 
     setLoading(true);
     const { error: rpcError } = await supabase.rpc('complete_profile_setup', {
-      p_role: role,
+      p_role: 'customer',
       p_full_name: fullName.trim(),
       p_phone: phone.trim(),
-      p_address_street: isFarmer ? null : addressStreet.trim(),
-      p_address_city: isFarmer ? null : addressCity.trim(),
-      p_address_state: isFarmer ? null : addressState.trim(),
-      p_address_zip: isFarmer ? null : addressZip.trim(),
-      p_dietary_preferences: isFarmer ? [] : dietaryPreferences,
-      p_produce_interests: isFarmer ? [] : produceInterests,
-      p_farm_name: isFarmer ? farmName.trim() : null,
+      p_address_street: addressStreet.trim(),
+      p_address_city: addressCity.trim(),
+      p_address_state: addressState.trim(),
+      p_address_zip: addressZip.trim(),
+      p_dietary_preferences: dietaryPreferences,
+      p_produce_interests: produceInterests,
     });
 
     if (rpcError) {
@@ -84,12 +75,8 @@ export default function RoleSetupDetails() {
         contentContainerStyle={[styles.container, { paddingTop: insets.top + spacing.lg }]}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.title}>{isFarmer ? 'Your farm details' : 'Your delivery details'}</Text>
-        <Text style={styles.subtitle}>
-          {isFarmer
-            ? "Just enough to start your application — you'll add farm photos and verification documents next."
-            : 'So nearby farms show up for you and orders reach the right address.'}
-        </Text>
+        <Text style={styles.title}>Your delivery details</Text>
+        <Text style={styles.subtitle}>So nearby farms show up for you and orders reach the right address.</Text>
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
@@ -102,34 +89,32 @@ export default function RoleSetupDetails() {
           onChangeText={setPhone}
         />
 
-        {isFarmer ? (
-          <TextField placeholder="Farm / business name" value={farmName} onChangeText={setFarmName} />
-        ) : (
-          <>
-            <Text style={styles.sectionTitle}>Delivery / pickup address</Text>
-            <TextField placeholder="Street address" value={addressStreet} onChangeText={setAddressStreet} />
-            <TextField placeholder="City" value={addressCity} onChangeText={setAddressCity} />
-            <View style={styles.row}>
-              <TextField style={styles.flex1} placeholder="State" value={addressState} onChangeText={setAddressState} />
-              <TextField
-                style={styles.flex1}
-                placeholder="ZIP code"
-                keyboardType="number-pad"
-                value={addressZip}
-                onChangeText={setAddressZip}
-              />
-            </View>
+        <Text style={styles.sectionTitle}>Delivery / pickup address</Text>
+        <TextField placeholder="Street address" value={addressStreet} onChangeText={setAddressStreet} />
+        <TextField placeholder="City" value={addressCity} onChangeText={setAddressCity} />
+        <View style={styles.row}>
+          <TextField style={styles.flex1} placeholder="State" value={addressState} onChangeText={setAddressState} />
+          <TextField
+            style={styles.flex1}
+            placeholder="ZIP code"
+            keyboardType="number-pad"
+            value={addressZip}
+            onChangeText={setAddressZip}
+          />
+        </View>
 
-            <Text style={styles.sectionTitle}>Dietary preferences (optional)</Text>
-            <TagSelector options={DIETARY_PREFERENCE_OPTIONS} value={dietaryPreferences} onChange={setDietaryPreferences} />
+        <Text style={styles.sectionTitle}>Dietary preferences (optional)</Text>
+        <TagSelector options={DIETARY_PREFERENCE_OPTIONS} value={dietaryPreferences} onChange={setDietaryPreferences} />
 
-            <Text style={styles.sectionTitle}>What are you interested in? (optional)</Text>
-            <TagSelector options={PRODUCE_INTEREST_OPTIONS} value={produceInterests} onChange={setProduceInterests} />
-          </>
-        )}
+        <Text style={styles.sectionTitle}>What are you interested in? (optional)</Text>
+        <TagSelector options={PRODUCE_INTEREST_OPTIONS} value={produceInterests} onChange={setProduceInterests} />
 
         <Pressable style={styles.button} onPress={handleSubmit} disabled={loading}>
           {loading ? <ActivityIndicator color={colors.white} /> : <Text style={styles.buttonText}>Continue</Text>}
+        </Pressable>
+
+        <Pressable style={styles.signOut} onPress={() => supabase.auth.signOut()} disabled={loading}>
+          <Text style={styles.signOutText}>Not you? Sign out</Text>
         </Pressable>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -152,4 +137,6 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
   },
   buttonText: { color: colors.white, fontWeight: '600', fontSize: 15 },
+  signOut: { alignItems: 'center', paddingVertical: spacing.md },
+  signOutText: { color: colors.primary, fontSize: 13, fontWeight: '600' },
 });

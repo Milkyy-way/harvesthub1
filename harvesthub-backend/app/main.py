@@ -8,6 +8,10 @@ from app.cart.router import router as cart_router
 from app.checkout.router import router as checkout_router
 from app.orders.router import router as orders_router
 from app.webhooks.router import router as webhooks_router
+from app.farmer_products.router import router as farmer_products_router
+from app.farmer_orders.router import router as farmer_orders_router
+from app.farmer_earnings.router import router as farmer_earnings_router
+from app.farmer_ratings.router import router as farmer_ratings_router
 
 app = FastAPI(title="HarvestHub API")
 
@@ -26,6 +30,10 @@ app.include_router(cart_router, prefix="/api/v1")
 app.include_router(checkout_router, prefix="/api/v1")
 app.include_router(orders_router, prefix="/api/v1")
 app.include_router(webhooks_router, prefix="/api/v1")
+app.include_router(farmer_products_router, prefix="/api/v1")
+app.include_router(farmer_orders_router, prefix="/api/v1")
+app.include_router(farmer_earnings_router, prefix="/api/v1")
+app.include_router(farmer_ratings_router, prefix="/api/v1")
 
 @app.get("/health")
 def health():

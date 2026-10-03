@@ -1,7 +1,7 @@
 import uuid
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 import stripe
@@ -23,16 +23,21 @@ from app.cart.service import _cart_totals
 # Terminal from the customer's point of view — no further payment action
 # will change these without a new attempt (we don't build retries yet).
 _TERMINAL_PAYMENT_STATUSES = ("succeeded", "canceled", "failed")
+# Store order lifecycle (see 0025):
+#   card: pending_payment -> paid -> ready_for_pickup -> completed
+#   cash: pending_payment ---------> ready_for_pickup -> completed
 # 'completed' is cancellable/refundable too (e.g. a quality complaint after
 # pickup) — this is what makes the farmer-payout ledger's refund-before/
 # after-payout branch reachable at all, since a ledger entry is only ever
 # created at completion (see app/payouts/service.py). No time limit on this
 # post-completion refund window yet — a known simplification.
-_CANCELLABLE_STORE_ORDER_STATUSES = ("pending_payment", "paid", "completed")
-# Statuses whose refund actually needs a real Stripe refund + a farmer
-# ledger adjustment (as opposed to 'pending_payment', which never captured
-# any money and never created a ledger entry).
-_REFUNDABLE_STORE_ORDER_STATUSES = ("paid", "completed")
+_CANCELLABLE_STORE_ORDER_STATUSES = ("pending_payment", "paid", "ready_for_pickup", "completed")
+# Statuses whose cancellation needs a refund (a no-op for cash, which never
+# captured money online) + a farmer ledger adjustment, and whose stock has
+# definitely been taken — as opposed to 'pending_payment'.
+_REFUNDABLE_STORE_ORDER_STATUSES = ("paid", "ready_for_pickup", "completed")
+# What a farmer can still cancel: anything not yet handed over.
+_FARMER_CANCELLABLE_STORE_ORDER_STATUSES = ("pending_payment", "paid", "ready_for_pickup")
 
 
 def get_owned_order(db: Session, customer_id: str, order_id: str) -> Order:
@@ -42,10 +47,26 @@ def get_owned_order(db: Session, customer_id: str, order_id: str) -> Order:
     return order
 
 
+def cancellations_for(db: Session, store_order_ids) -> dict:
+    """store_order_id -> (cancelled_by_role, reason) for the ones that were
+    cancelled — shown to the customer ("Cancelled by the farm: out of
+    stock") and to the farmer."""
+    if not store_order_ids:
+        return {}
+    rows = (
+        db.query(OrderCancellation)
+        .filter(OrderCancellation.store_order_id.in_(list(store_order_ids)))
+        .order_by(OrderCancellation.created_at)
+        .all()
+    )
+    return {c.store_order_id: (c.cancelled_by_role, c.reason) for c in rows}  # latest wins
+
+
 def build_order_out(db: Session, order_id) -> dict:
     order = db.query(Order).filter(Order.id == order_id).first()
     store_orders = db.query(StoreOrder).filter(StoreOrder.order_id == order_id).order_by(StoreOrder.created_at).all()
     payment = db.query(Payment).filter(Payment.order_id == order_id).first()
+    cancellation_by_store_order = cancellations_for(db, [so.id for so in store_orders])
 
     # Live-joined, not a snapshot — unlike price/address (frozen for
     # historical accuracy), a farm's photo has no legal/financial reason to
@@ -72,6 +93,7 @@ def build_order_out(db: Session, order_id) -> dict:
             .scalar()
         )
         rating = ratings_service.get_rating_for_store_order(db, so.id)
+        cancelled_by, cancellation_reason = cancellation_by_store_order.get(so.id, (None, None))
         store_order_outs.append(
             {
                 "id": str(so.id),
@@ -97,6 +119,8 @@ def build_order_out(db: Session, order_id) -> dict:
                 "total": float(so.total),
                 "refunded_amount": float(refunded or 0),
                 "status": so.status,
+                "cancelled_by": cancelled_by if so.status == "cancelled" else None,
+                "cancellation_reason": cancellation_reason if so.status == "cancelled" else None,
                 "items": [
                     {
                         "product_id": str(i.product_id) if i.product_id else None,
@@ -161,8 +185,19 @@ def _commit_inventory_and_clear_cart(db: Session, customer_id: str, order_id) ->
     actually confirmed (see _finalize_successful_payment) — so a declined
     or abandoned payment never locks stock or empties a cart for nothing.
     cash_on_pickup has no such failure mode, so it calls this immediately
-    at creation instead."""
-    store_orders = db.query(StoreOrder).filter(StoreOrder.order_id == order_id).all()
+    at creation instead.
+
+    Only touches store orders still in 'pending_payment' — a farm cancelled
+    out of a still-unpaid multi-farm order must keep its stock and its cart
+    lines when the rest of the order is paid later. The row lock also makes
+    a racing second call (webhook vs. the app's sync endpoint) wait, then
+    find nothing left in 'pending_payment', so stock is never taken twice."""
+    store_orders = (
+        db.query(StoreOrder)
+        .filter(StoreOrder.order_id == order_id, StoreOrder.status == "pending_payment")
+        .with_for_update()
+        .all()
+    )
     for so in store_orders:
         items = db.query(StoreOrderItem).filter(StoreOrderItem.store_order_id == so.id).all()
         for item in items:
@@ -200,6 +235,12 @@ def create_order(db: Session, customer, request: CreateOrderRequest) -> tuple[di
     db.add(order)
     db.flush()
 
+    # A cash order is fully placed right now (there's no online payment
+    # step), so its farmers can see it — and the customer's name/phone —
+    # immediately. A card order is released only once payment succeeds
+    # (_finalize_successful_payment). The customer was told this at checkout.
+    released_at = datetime.now(timezone.utc) if request.payment_method == "cash_on_pickup" else None
+
     for group in preview["groups"]:
         delivery = delivery_by_farmer.get(group["farmer_id"])
         store_order = StoreOrder(
@@ -224,6 +265,7 @@ def create_order(db: Session, customer, request: CreateOrderRequest) -> tuple[di
             tax=group["tax"],
             total=group["farm_total"],
             status="pending_payment",
+            released_to_farmer_at=released_at,
         )
         db.add(store_order)
         db.flush()
@@ -281,8 +323,10 @@ def _finalize_successful_payment(db: Session, order_id) -> None:
     if not order:
         return
     _commit_inventory_and_clear_cart(db, str(order.customer_id), order_id)
+    # Paid = fully placed: the farmer can now see the order (and the
+    # customer's name/phone, as the customer was told at checkout).
     db.query(StoreOrder).filter(StoreOrder.order_id == order_id, StoreOrder.status == "pending_payment").update(
-        {"status": "paid"}
+        {"status": "paid", "released_to_farmer_at": datetime.now(timezone.utc)}
     )
     db.commit()
 
@@ -350,6 +394,45 @@ def _record_cancellation(order_id, store_order_id, cancelled_by, cancelled_by_ro
     )
 
 
+def _stock_was_taken(payment: Payment | None, store_order: StoreOrder) -> bool:
+    """Whether _commit_inventory_and_clear_cart already ran for this store
+    order — card orders take stock once paid, cash orders the moment they're
+    placed. Must be checked BEFORE the store order's status changes."""
+    if store_order.status in _REFUNDABLE_STORE_ORDER_STATUSES:
+        return True
+    return (
+        store_order.status == "pending_payment"
+        and payment is not None
+        and payment.payment_method == "cash_on_pickup"
+    )
+
+
+def _restore_inventory(db: Session, store_order: StoreOrder) -> None:
+    items = db.query(StoreOrderItem).filter(StoreOrderItem.store_order_id == store_order.id).all()
+    for item in items:
+        if item.product_id:
+            product = db.query(Product).filter(Product.id == item.product_id).first()
+            if product:
+                product.quantity_available += item.quantity
+
+
+def _sync_cash_payment_status(db: Session, order_id, payment: Payment | None) -> None:
+    """A cash payment has no Stripe object reporting its status, so derive
+    it from the store orders: 'pending' while any farm still awaits pickup,
+    'succeeded' once everything not cancelled was collected, 'canceled' if
+    every farm was cancelled."""
+    if payment is None or payment.payment_method != "cash_on_pickup":
+        return
+    db.flush()  # autoflush is off — the caller's status change must be visible to the query below
+    statuses = {s for (s,) in db.query(StoreOrder.status).filter(StoreOrder.order_id == order_id).all()}
+    if statuses & {"pending_payment", "ready_for_pickup"}:
+        payment.status = "pending"
+    elif "completed" in statuses:
+        payment.status = "succeeded"
+    else:
+        payment.status = "canceled"
+
+
 def _refund_store_order(db: Session, payment: Payment, store_order: StoreOrder, reason: str | None) -> None:
     if payment.payment_method == "cash_on_pickup":
         return  # nothing was ever electronically captured — just a status change, no refund object
@@ -372,14 +455,6 @@ def _refund_store_order(db: Session, payment: Payment, store_order: StoreOrder, 
             status="succeeded" if stripe_refund.status == "succeeded" else "pending",
         )
     )
-    # Inventory was only ever decremented once payment succeeded (see
-    # _commit_inventory_and_clear_cart) — restore it now that it's cancelled.
-    items = db.query(StoreOrderItem).filter(StoreOrderItem.store_order_id == store_order.id).all()
-    for item in items:
-        if item.product_id:
-            product = db.query(Product).filter(Product.id == item.product_id).first()
-            if product:
-                product.quantity_available += item.quantity
 
 
 def cancel_store_order(
@@ -395,11 +470,28 @@ def cancel_store_order(
             detail=f"Cannot cancel a store order with status '{store_order.status}'",
         )
 
+    _cancel_one_store_order(db, order, store_order, cancelled_by, cancelled_by_role, reason)
+    db.commit()
+    return build_order_out(db, order.id)
+
+
+def _cancel_one_store_order(
+    db: Session, order: Order, store_order: StoreOrder, cancelled_by, cancelled_by_role: str, reason: str | None
+) -> bool:
+    """Cancels one farm's part of an order — shared by the customer's and the
+    farmer's cancel actions. Refunds whatever was paid (full store order
+    total), restores stock that was taken, adjusts the farmer ledger, and
+    records who cancelled. Does NOT commit. Returns True if real money was
+    refunded to a card (the case where a farmer cancellation costs the
+    farmer the service fee)."""
     payment = db.query(Payment).filter(Payment.order_id == order.id).first()
+    stock_taken = _stock_was_taken(payment, store_order)
+    refunded_to_card = False
 
     if store_order.status in _REFUNDABLE_STORE_ORDER_STATUSES:
         _refund_store_order(db, payment, store_order, reason)
         payouts_service.handle_refund_ledger_adjustment(db, store_order)
+        refunded_to_card = payment is not None and payment.payment_method == "card"
     elif payment and payment.payment_method == "card" and payment.status not in _TERMINAL_PAYMENT_STATUSES:
         sibling_count = (
             db.query(StoreOrder)
@@ -427,10 +519,12 @@ def cancel_store_order(
                 )
             payment.amount = new_amount
 
+    if stock_taken:
+        _restore_inventory(db, store_order)
     store_order.status = "cancelled"
     db.add(_record_cancellation(order.id, store_order.id, cancelled_by, cancelled_by_role, reason))
-    db.commit()
-    return build_order_out(db, order.id)
+    _sync_cash_payment_status(db, order.id, payment)
+    return refunded_to_card
 
 
 def cancel_whole_order(db: Session, customer_id: str, order_id: str, cancelled_by_role: str, cancelled_by, reason: str | None) -> dict:
@@ -450,6 +544,7 @@ def cancel_whole_order(db: Session, customer_id: str, order_id: str, cancelled_b
     for so in refundable:
         _refund_store_order(db, payment, so, reason)
         payouts_service.handle_refund_ledger_adjustment(db, so)
+        _restore_inventory(db, so)  # paid/completed always had its stock taken
         so.status = "cancelled"
         db.add(_record_cancellation(order.id, so.id, cancelled_by, cancelled_by_role, reason))
 
@@ -462,29 +557,99 @@ def cancel_whole_order(db: Session, customer_id: str, order_id: str, cancelled_b
             payment.status = "canceled"
             db.add(PaymentCancellation(id=uuid.uuid4(), payment_id=payment.id, reason=reason))
         for so in pending:
+            if _stock_was_taken(payment, so):  # cash orders take stock at placement
+                _restore_inventory(db, so)
             so.status = "cancelled"
             db.add(_record_cancellation(order.id, so.id, cancelled_by, cancelled_by_role, reason))
 
+    _sync_cash_payment_status(db, order.id, payment)
     db.commit()
     return build_order_out(db, order.id)
 
 
 def mark_store_order_completed(db: Session, customer_id: str, order_id: str, store_order_id: str) -> dict:
-    """Customer-initiated 'I received this' confirmation — there's no
-    farmer-facing fulfillment tool yet to transition this automatically."""
+    """Customer-initiated 'I picked this up' confirmation — only once the
+    farm has marked it ready_for_pickup. For a cash order this is also the
+    moment the cash changes hands, so its ledger entry records the cash the
+    farmer collected (see app/payouts/service.py)."""
     order = get_owned_order(db, customer_id, order_id)
     store_order = db.query(StoreOrder).filter(StoreOrder.id == store_order_id, StoreOrder.order_id == order.id).first()
     if not store_order:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Store order not found")
-    if store_order.status != "paid":
+
+    payment = db.query(Payment).filter(Payment.order_id == order.id).first()
+    is_cash = payment is not None and payment.payment_method == "cash_on_pickup"
+    if store_order.status != "ready_for_pickup":
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"Only a paid order can be marked received (current status: '{store_order.status}')",
+            detail="The farm hasn't marked this order ready for pickup yet",
         )
     store_order.status = "completed"
-    payouts_service.create_ledger_entry_for_completion(db, store_order)
+    payouts_service.create_ledger_entry_for_completion(
+        db, store_order, cash_collected=float(store_order.total) if is_cash else 0.0
+    )
+    _sync_cash_payment_status(db, order.id, payment)
     db.commit()
     return build_order_out(db, order.id)
+
+
+# --- Farmer-side actions (Farmer F3) -----------------------------------------
+
+
+def get_farmer_store_order(db: Session, farmer_id, store_order_id: str) -> StoreOrder:
+    """A store order the farmer is allowed to act on: theirs, and released to
+    them (paid by card, or placed as cash). Anything else 404s — a farmer
+    can't even confirm an unreleased order exists."""
+    try:
+        sid = uuid.UUID(store_order_id)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
+    store_order = (
+        db.query(StoreOrder)
+        .filter(StoreOrder.id == sid, StoreOrder.farmer_id == farmer_id, StoreOrder.released_to_farmer_at.isnot(None))
+        .first()
+    )
+    if not store_order:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
+    return store_order
+
+
+def mark_store_order_ready_for_pickup(db: Session, farmer_id, store_order_id: str) -> StoreOrder:
+    """The farm has the order packed: card orders go paid -> ready_for_pickup,
+    cash orders pending_payment -> ready_for_pickup (they're paid at pickup).
+    The customer's "Mark as Received" unlocks from here."""
+    store_order = get_farmer_store_order(db, farmer_id, store_order_id)
+    payment = db.query(Payment).filter(Payment.order_id == store_order.order_id).first()
+    is_cash = payment is not None and payment.payment_method == "cash_on_pickup"
+    preparable_status = "pending_payment" if is_cash else "paid"
+    if store_order.status != preparable_status:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"This order can't be marked ready (current status: '{store_order.status}')",
+        )
+    store_order.status = "ready_for_pickup"
+    _sync_cash_payment_status(db, store_order.order_id, payment)
+    db.commit()
+    return store_order
+
+
+def farmer_cancel_store_order(db: Session, farmer_id, store_order_id: str, reason: str) -> StoreOrder:
+    """The farm can't fill the order (out of stock, ...). The customer gets a
+    full refund to their card; the farmer bears the service fee, deducted
+    from their next payout (decided with the user). Cancelling a cash order
+    costs the farmer nothing — no money was collected."""
+    store_order = get_farmer_store_order(db, farmer_id, store_order_id)
+    if store_order.status not in _FARMER_CANCELLABLE_STORE_ORDER_STATUSES:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"This order can't be cancelled (current status: '{store_order.status}')",
+        )
+    order = db.query(Order).filter(Order.id == store_order.order_id).one()
+    refunded_to_card = _cancel_one_store_order(db, order, store_order, farmer_id, "farmer", reason)
+    if refunded_to_card:
+        payouts_service.create_cancellation_fee_entry(db, store_order)
+    db.commit()
+    return store_order
 
 
 def submit_store_order_rating(
@@ -558,7 +723,7 @@ def reorder(db: Session, customer_id: str, order_id: str) -> dict:
 # store_order was refunded (or never captured), so it contributes nothing
 # to spending/savings/insights even if the parent order also has paid
 # siblings.
-_KEPT_STORE_ORDER_STATUSES = ("paid", "completed")
+_KEPT_STORE_ORDER_STATUSES = ("paid", "ready_for_pickup", "completed")
 
 
 # Rolling windows, not calendar-based (no "this month" edge cases to
@@ -591,9 +756,17 @@ def get_dashboard_summary(db: Session, customer_id: str, range_key: str | None =
     if not orders:
         return empty
 
+    # A card order's money is kept from 'paid' on; a cash order's only once
+    # it's actually collected at pickup ('completed') — a cash order that's
+    # merely ready_for_pickup hasn't been paid yet.
     all_kept_store_orders = (
         db.query(StoreOrder)
-        .filter(StoreOrder.order_id.in_({o.id for o in orders}), StoreOrder.status.in_(_KEPT_STORE_ORDER_STATUSES))
+        .join(Payment, Payment.order_id == StoreOrder.order_id)
+        .filter(
+            StoreOrder.order_id.in_({o.id for o in orders}),
+            StoreOrder.status.in_(_KEPT_STORE_ORDER_STATUSES),
+            or_(StoreOrder.status == "completed", Payment.payment_method != "cash_on_pickup"),
+        )
         .all()
     )
 

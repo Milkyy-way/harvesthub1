@@ -59,6 +59,7 @@ export interface FarmerProfile {
   address_zip: string | null;
   farm_types: FarmType[];
   years_in_operation: number | null;
+  bio: string | null; // shown on the customer-facing farm page; edited in Farmer F6
   tax_id: string | null;
   latitude: number | null;
   longitude: number | null;

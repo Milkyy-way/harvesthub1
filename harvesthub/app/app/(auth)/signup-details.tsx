@@ -42,16 +42,13 @@ export default function SignupDetails() {
       const session = await signInWithGoogle();
       if (!session) return; // cancelled the Google sheet
 
-      // The role was already decided on the previous screen — skip
-      // app/(role-setup)/role.tsx's generic picker entirely and go
-      // straight to the details form for THIS role, but only if this
-      // account genuinely doesn't have one yet. An existing account
-      // (this email already signed up before) keeps its real role — we
-      // don't overwrite it just because they happened to start from the
-      // "farmer" or "customer" card this time.
+      // Google sign-up is customer-only (farmers use email/password — see
+      // 0022). Go straight to the customer details form, but only if this
+      // account genuinely doesn't have a role yet: an existing account
+      // (this email already signed up before) keeps its real role.
       const { data: profileRow } = await supabase.from('profiles').select('role').eq('id', session.user.id).single();
       if (profileRow && !profileRow.role) {
-        router.replace({ pathname: '/(role-setup)/details', params: { role } });
+        router.replace('/(role-setup)/details');
       }
       // else: either already fully set up, or somehow already has this
       // role's row started — RootLayout's own redirect effect (which
@@ -81,7 +78,7 @@ export default function SignupDetails() {
       }
 
       setLoading(true);
-      const { error: signUpError } = await supabase.auth.signUp({
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
         email: result.data.email.toLowerCase(),
         password: result.data.password,
         options: {
@@ -106,13 +103,16 @@ export default function SignupDetails() {
         setError(signUpError.message);
         return;
       }
-      setSubmitted(true);
+      // With email confirmation off, signUp signs them straight in and the
+      // root layout's route guard takes over — only show "check your email"
+      // when there's no session yet.
+      if (!signUpData.session) setSubmitted(true);
       return;
     }
 
-    // Farmer: this is only account creation (step 1). Farm details and
-    // verification documents are collected later, in-app, once the farmer
-    // has confirmed their email and logged in — see app/(farmer)/onboarding.
+    // Farmer: this is only account creation. Farm details and verification
+    // documents are collected next, in-app (app/(farmer)/application.tsx) —
+    // uploads need the logged-in session.
     const result = farmerAccountSchema.safeParse(farmerValues);
     if (!result.success) {
       setFieldErrors(flattenFieldErrors(result.error));
@@ -121,7 +121,7 @@ export default function SignupDetails() {
     }
 
     setLoading(true);
-    const { error: signUpError } = await supabase.auth.signUp({
+    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
       email: result.data.email.toLowerCase(),
       password: result.data.password,
       options: {
@@ -139,7 +139,7 @@ export default function SignupDetails() {
       setError(signUpError.message);
       return;
     }
-    setSubmitted(true);
+    if (!signUpData.session) setSubmitted(true);
   };
 
   if (submitted) {
@@ -175,33 +175,33 @@ export default function SignupDetails() {
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
-        <Pressable style={styles.googleButton} onPress={handleGoogleSignUp} disabled={googleLoading}>
-          {googleLoading ? (
-            <ActivityIndicator color={colors.text} />
-          ) : (
-            <>
-              <AntDesign name="google" size={17} color={colors.text} />
-              <Text style={styles.googleButtonText}>
-                Sign up with Google as a {role === 'farmer' ? 'farmer' : 'customer'}
-              </Text>
-            </>
-          )}
-        </Pressable>
-
-        <View style={styles.dividerRow}>
-          <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>or fill in manually</Text>
-          <View style={styles.dividerLine} />
-        </View>
-
         {role === 'customer' ? (
-          <CustomerFields value={customerValues} onChange={updateCustomer} errors={fieldErrors} />
+          <>
+            <Pressable style={styles.googleButton} onPress={handleGoogleSignUp} disabled={googleLoading}>
+              {googleLoading ? (
+                <ActivityIndicator color={colors.text} />
+              ) : (
+                <>
+                  <AntDesign name="google" size={17} color={colors.text} />
+                  <Text style={styles.googleButtonText}>Sign up with Google</Text>
+                </>
+              )}
+            </Pressable>
+
+            <View style={styles.dividerRow}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>or fill in manually</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
+            <CustomerFields value={customerValues} onChange={updateCustomer} errors={fieldErrors} />
+          </>
         ) : (
           <>
             <FarmerAccountFields value={farmerValues} onChange={updateFarmer} errors={fieldErrors} />
             <Text style={styles.farmerNote}>
-              After you confirm your email and log in, you&apos;ll complete your farm details and verification
-              documents. Your application is reviewed before you get full access.
+              Next, you&apos;ll add your farm details and verification documents. You can explore the farmer app
+              while HarvestHub reviews your application — products and orders unlock once you&apos;re approved.
             </Text>
           </>
         )}

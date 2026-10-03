@@ -9,9 +9,13 @@ type Props = {
   value: PickedFile | null;
   onChange: (file: PickedFile | null) => void;
   required?: boolean;
+  // A file for this slot is already stored from an earlier save — picking a
+  // new one replaces it; leaving it alone keeps the stored one.
+  uploaded?: boolean;
+  error?: string | null;
 };
 
-export function DocumentUploadField({ label, value, onChange, required }: Props) {
+export function DocumentUploadField({ label, value, onChange, required, uploaded, error: fieldError }: Props) {
   const [error, setError] = useState<string | null>(null);
 
   const handlePick = async () => {
@@ -30,17 +34,17 @@ export function DocumentUploadField({ label, value, onChange, required }: Props)
         {label}
         {required ? ' *' : ''}
       </Text>
-      <Pressable style={styles.button} onPress={handlePick}>
-        <Text style={styles.buttonText} numberOfLines={1}>
-          {value ? value.name : 'Choose file'}
+      <Pressable style={[styles.button, (value || uploaded) && styles.buttonDone]} onPress={handlePick}>
+        <Text style={[styles.buttonText, (value || uploaded) && styles.buttonTextDone]} numberOfLines={1}>
+          {value ? value.name : uploaded ? 'Uploaded ✓  ·  tap to replace' : 'Choose file'}
         </Text>
       </Pressable>
       {value ? (
         <Pressable onPress={() => onChange(null)}>
-          <Text style={styles.remove}>Remove</Text>
+          <Text style={styles.remove}>{uploaded ? 'Keep the file already uploaded' : 'Remove'}</Text>
         </Pressable>
       ) : null}
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {error || fieldError ? <Text style={styles.error}>{error ?? fieldError}</Text> : null}
     </View>
   );
 }
@@ -55,7 +59,9 @@ const styles = StyleSheet.create({
     padding: 14,
     backgroundColor: colors.surface,
   },
+  buttonDone: { borderColor: colors.primaryMid },
   buttonText: { color: colors.textMuted },
+  buttonTextDone: { color: colors.primary, fontWeight: '600' },
   remove: { color: colors.danger, fontSize: 12, marginTop: spacing.xs },
   error: { color: colors.danger, fontSize: 12, marginTop: spacing.xs },
 });

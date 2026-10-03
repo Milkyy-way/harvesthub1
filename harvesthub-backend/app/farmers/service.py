@@ -1,9 +1,12 @@
 import requests
 from collections import defaultdict
 from datetime import datetime
+from fastapi import Depends, HTTPException, status
 from sqlalchemy import and_, exists
 from sqlalchemy.orm import Session
 
+from app.core.database import get_db
+from app.core.security import get_current_user
 from app.core.geo import haversine_km
 from app.core.models import Profile
 from app.farmers.models import FarmerProfile, FarmerCertification
@@ -25,6 +28,23 @@ _SPOTLIGHT_NEUTRAL_RATING = 3.5
 # Smooths proximity into a 0-1 score with no hard cutoff radius — a farm
 # 10km away still gets half credit rather than being excluded outright.
 _SPOTLIGHT_PROXIMITY_DECAY_KM = 10.0
+
+
+def get_current_farmer(
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
+) -> FarmerProfile:
+    """The farmer-side twin of app/customers/service.py's
+    get_current_customer: every /farmers/me/* endpoint requires an APPROVED
+    farmer (profiles.status == 'active'). This is what actually enforces the
+    farmer app's locked Products/Orders tabs — the app's locks are only UI."""
+    profile = db.query(Profile).filter(Profile.id == user["id"]).first()
+    if not profile or profile.role != "farmer" or profile.status != "active":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Approved farmer account required")
+    farmer = db.query(FarmerProfile).filter(FarmerProfile.id == user["id"]).first()
+    if not farmer:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Approved farmer account required")
+    return farmer
 
 
 def get_or_geocode_farmer(db: Session, farmer_id: str) -> FarmerProfile:

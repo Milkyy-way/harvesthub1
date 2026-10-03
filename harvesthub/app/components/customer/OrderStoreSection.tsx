@@ -6,6 +6,7 @@ import { RatingStars } from './RatingStars';
 
 type Props = {
   storeOrder: StoreOrder;
+  paysAtPickup: boolean; // cash_on_pickup — the order's single payment covers every farm in it
   busy: boolean;
   onCancel: () => void;
   onMarkReceived: () => void;
@@ -16,18 +17,20 @@ type Props = {
 const STATUS_LABELS: Record<StoreOrder['status'], string> = {
   pending_payment: 'Awaiting payment',
   paid: 'Paid — preparing',
+  ready_for_pickup: 'Ready for pickup',
   completed: 'Completed',
   cancelled: 'Cancelled',
 };
 
 const STATUS_COLORS: Record<StoreOrder['status'], string> = {
   pending_payment: colors.accent,
-  paid: colors.primary,
+  paid: colors.primaryMid,
+  ready_for_pickup: colors.primary,
   completed: colors.primaryDark,
   cancelled: colors.danger,
 };
 
-export function OrderStoreSection({ storeOrder, busy, onCancel, onMarkReceived, onRate, ratingBusy }: Props) {
+export function OrderStoreSection({ storeOrder, paysAtPickup, busy, onCancel, onMarkReceived, onRate, ratingBusy }: Props) {
   const addressLine =
     storeOrder.fulfillment_method === 'pickup'
       ? [storeOrder.pickup_address_street, storeOrder.pickup_address_city, storeOrder.pickup_address_state, storeOrder.pickup_address_zip]
@@ -42,8 +45,19 @@ export function OrderStoreSection({ storeOrder, busy, onCancel, onMarkReceived, 
           .filter(Boolean)
           .join(', ');
 
-  const canCancel = storeOrder.status === 'pending_payment' || storeOrder.status === 'paid';
-  const canMarkReceived = storeOrder.status === 'paid';
+  // The farm marks an order ready once it's packed; only then can the
+  // customer confirm pickup. A cash order is paid at pickup, so until then
+  // it stays 'pending_payment' (shown as "Preparing", not "Awaiting payment").
+  const preparing = storeOrder.status === 'paid' || (paysAtPickup && storeOrder.status === 'pending_payment');
+  const statusLabel =
+    paysAtPickup && storeOrder.status === 'pending_payment'
+      ? 'Preparing · pay at pickup'
+      : paysAtPickup && storeOrder.status === 'ready_for_pickup'
+        ? 'Ready · pay at pickup'
+        : STATUS_LABELS[storeOrder.status];
+  const canCancel =
+    storeOrder.status === 'pending_payment' || storeOrder.status === 'paid' || storeOrder.status === 'ready_for_pickup';
+  const canMarkReceived = storeOrder.status === 'ready_for_pickup';
 
   return (
     <View style={styles.container}>
@@ -53,7 +67,7 @@ export function OrderStoreSection({ storeOrder, busy, onCancel, onMarkReceived, 
         </Text>
         <View style={[styles.statusPill, { backgroundColor: `${STATUS_COLORS[storeOrder.status]}1A` }]}>
           <Text style={[styles.statusText, { color: STATUS_COLORS[storeOrder.status] }]}>
-            {STATUS_LABELS[storeOrder.status]}
+            {statusLabel}
           </Text>
         </View>
       </View>
@@ -92,6 +106,16 @@ export function OrderStoreSection({ storeOrder, busy, onCancel, onMarkReceived, 
         <BreakdownLine label="Total" value={storeOrder.total} bold />
         {storeOrder.refunded_amount > 0 ? <BreakdownLine label="Refunded" value={-storeOrder.refunded_amount} highlight /> : null}
       </View>
+
+      {storeOrder.status === 'cancelled' && storeOrder.cancelled_by === 'farmer' ? (
+        <Text style={styles.note}>
+          Cancelled by the farm{storeOrder.cancellation_reason ? `: ${storeOrder.cancellation_reason}` : ''}.
+          {storeOrder.refunded_amount > 0 ? ' Your refund goes back to your card.' : ''}
+        </Text>
+      ) : null}
+      {preparing ? (
+        <Text style={styles.hint}>The farm is packing your order — it&apos;ll show “Ready for pickup” here when it&apos;s ready.</Text>
+      ) : null}
 
       {storeOrder.status === 'completed' ? (
         <View style={styles.ratingRow}>
@@ -181,6 +205,8 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
   },
   ratingLabel: { fontSize: 13, fontWeight: '600', color: colors.text },
+  note: { fontSize: 12.5, lineHeight: 18, color: colors.danger, marginTop: spacing.sm },
+  hint: { fontSize: 12.5, lineHeight: 18, color: colors.textMuted, marginTop: spacing.sm },
   actionsRow: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm },
   cancelButton: {
     flex: 1,

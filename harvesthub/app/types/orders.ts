@@ -7,7 +7,9 @@ export type FulfillmentMethod = 'pickup' | 'delivery';
 // show based on device capability, the app doesn't distinguish which.
 export type OrderPaymentMethod = 'card' | 'cash_on_pickup';
 
-export type StoreOrderStatus = 'pending_payment' | 'paid' | 'completed' | 'cancelled';
+// card: pending_payment -> paid -> ready_for_pickup -> completed
+// cash: pending_payment ---------> ready_for_pickup -> completed
+export type StoreOrderStatus = 'pending_payment' | 'paid' | 'ready_for_pickup' | 'completed' | 'cancelled';
 export type OrderStatus = 'active' | 'completed' | 'cancelled';
 
 export interface OrderLineItem {
@@ -42,6 +44,8 @@ export interface StoreOrder {
   total: number;
   refunded_amount: number;
   status: StoreOrderStatus;
+  cancelled_by: 'customer' | 'farmer' | 'admin' | null;
+  cancellation_reason: string | null;
   items: OrderLineItem[];
   my_rating: number | null;
 }

@@ -4,11 +4,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { colors, spacing, radius, fonts } from '../../constants/theme';
 import { SettingsRow } from '../../components/customer/SettingsRow';
+import { SUPPORT_EMAIL } from '../../constants/support';
 
-// Placeholder support address — confirm a real, monitored inbox before
-// shipping. No FAQ content is invented here; add real answers once you
-// have them rather than generic filler.
-const SUPPORT_EMAIL = 'support@harvesthubmarket.com';
+// No FAQ content is invented here; add real answers once you have them
+// rather than generic filler.
 
 export default function HelpScreen() {
   const router = useRouter();

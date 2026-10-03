@@ -15,14 +15,21 @@ def pay_period_for(d: date) -> tuple[date, date]:
     return start, end
 
 
-def create_ledger_entry_for_completion(db: Session, store_order: StoreOrder) -> None:
+def create_ledger_entry_for_completion(db: Session, store_order: StoreOrder, cash_collected: float = 0.0) -> None:
     """Called once a store order is marked completed (see
     app/orders/service.py::mark_store_order_completed) — the "Order
     completed" trigger for farmer payout eligibility. Does NOT commit —
-    the caller commits once, atomically with the status change."""
+    the caller commits once, atomically with the status change.
+
+    cash_collected is what the farmer already took in hand at pickup (the
+    whole store_order.total for a cash_on_pickup order, 0 for card). It
+    comes straight off net, so a cash order's entry is negative: the farmer
+    owes the platform its commission plus the service fee and tax they
+    collected, deducted from their next weekly payout."""
     gross = round(float(store_order.subtotal) - float(store_order.promo_discount), 2)
     commission = round(gross * FARMER_COMMISSION_RATE, 2)
-    net = round(gross - commission, 2)
+    cash = round(cash_collected, 2)
+    net = round(gross - commission - cash, 2)
     period_start, period_end = pay_period_for(date.today())
 
     db.add(
@@ -34,6 +41,7 @@ def create_ledger_entry_for_completion(db: Session, store_order: StoreOrder) -> 
             gross_amount=gross,
             commission_rate=FARMER_COMMISSION_RATE,
             commission_amount=commission,
+            cash_collected=cash,
             net_amount=net,
             pay_period_start=period_start,
             pay_period_end=period_end,
@@ -79,7 +87,38 @@ def handle_refund_ledger_adjustment(db: Session, store_order: StoreOrder) -> Non
             gross_amount=-entry.gross_amount,
             commission_rate=entry.commission_rate,
             commission_amount=-entry.commission_amount,
+            cash_collected=-entry.cash_collected,
+            fee_amount=-entry.fee_amount,
             net_amount=-entry.net_amount,
+            pay_period_start=period_start,
+            pay_period_end=period_end,
+            status="open",
+        )
+    )
+
+
+def create_cancellation_fee_entry(db: Session, store_order: StoreOrder) -> None:
+    """A farmer cancelled a store order the customer had already paid for:
+    the customer is refunded in full, and the farmer bears the platform's
+    service fee (decided with the user) — deducted from their next weekly
+    payout like any other open entry. Does NOT commit (the caller commits
+    with the cancellation). At most one per store order (0025's unique index)."""
+    fee = round(float(store_order.service_fee), 2)
+    if fee <= 0:
+        return
+    period_start, period_end = pay_period_for(date.today())
+    db.add(
+        LedgerEntry(
+            id=uuid.uuid4(),
+            farmer_id=store_order.farmer_id,
+            store_order_id=store_order.id,
+            entry_type="cancellation_fee",
+            gross_amount=0,
+            commission_rate=0,
+            commission_amount=0,
+            cash_collected=0,
+            fee_amount=fee,
+            net_amount=-fee,
             pay_period_start=period_start,
             pay_period_end=period_end,
             status="open",

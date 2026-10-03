@@ -213,6 +213,7 @@ export default function CheckoutScreen() {
             </Text>
             <Text style={styles.totalValue}>${preview.grand_total.toFixed(2)}</Text>
           </View>
+          <ContactSharingNotice farmNames={preview.groups.map((g) => g.farm_name)} paymentMethod={paymentMethod} />
           <Pressable
             style={[styles.placeOrderButton, (!paymentMethod || placingOrder) && styles.placeOrderButtonDisabled]}
             onPress={handlePlaceOrder}
@@ -226,6 +227,32 @@ export default function CheckoutScreen() {
           </Pressable>
         </View>
       ) : null}
+    </View>
+  );
+}
+
+// Shown before the customer pays (decided with the user): exactly what is
+// shared with the farm and when. The backend only releases it to the farmer
+// once the order is fully placed — after a card payment succeeds, or at
+// placement for cash on pickup (store_orders.released_to_farmer_at, 0025).
+function ContactSharingNotice({ farmNames, paymentMethod }: { farmNames: string[]; paymentMethod: OrderPaymentMethod | null }) {
+  const farms =
+    farmNames.length <= 1
+      ? farmNames[0] ?? 'the farm'
+      : `${farmNames.slice(0, -1).join(', ')} and ${farmNames[farmNames.length - 1]}`;
+  const when =
+    paymentMethod === 'card'
+      ? 'only after your payment goes through'
+      : paymentMethod === 'cash_on_pickup'
+        ? 'as soon as you place the order'
+        : 'only once your order is placed (after payment, for card orders)';
+  return (
+    <View style={styles.notice}>
+      <MaterialIcons name="privacy-tip" size={16} color={colors.textMuted} />
+      <Text style={styles.noticeText}>
+        {farms} will receive your <Text style={styles.noticeBold}>full name and phone number</Text> so they can reach you
+        about pickup — {when}. Nothing else is shared.
+      </Text>
     </View>
   );
 }
@@ -303,6 +330,9 @@ const styles = StyleSheet.create({
   },
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },
   totalLabel: { fontSize: 13, color: colors.textMuted },
+  notice: { flexDirection: 'row', gap: 6, alignItems: 'flex-start', marginBottom: spacing.sm },
+  noticeText: { flex: 1, fontSize: 12, lineHeight: 17, color: colors.textMuted },
+  noticeBold: { fontWeight: '700', color: colors.text },
   totalValue: { fontSize: 20, fontWeight: '700', color: colors.text },
   placeOrderButton: {
     backgroundColor: colors.primary,

@@ -58,7 +58,9 @@ class StoreOrderOut(BaseModel):
     tax: float
     total: float
     refunded_amount: float
-    status: Literal["pending_payment", "paid", "completed", "cancelled"]
+    status: Literal["pending_payment", "paid", "ready_for_pickup", "completed", "cancelled"]
+    cancelled_by: Optional[Literal["customer", "farmer", "admin"]]
+    cancellation_reason: Optional[str]
     items: list[OrderItemOut]
     my_rating: Optional[int]
 

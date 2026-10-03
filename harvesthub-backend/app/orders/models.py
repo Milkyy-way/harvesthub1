@@ -41,7 +41,10 @@ class StoreOrder(Base):
     tax = Column(Numeric(10, 2), nullable=False, default=0)
     total = Column(Numeric(10, 2), nullable=False)
 
-    status = Column(String, nullable=False, default="pending_payment")
+    status = Column(String, nullable=False, default="pending_payment")  # + 'ready_for_pickup' — see 0025
+    # When the farmer may see this order and the customer's name/phone:
+    # card payment succeeded, or placed as cash on pickup. Null = never shown.
+    released_to_farmer_at = Column(TIMESTAMP(timezone=True), nullable=True)
     created_at = Column(TIMESTAMP, default=datetime.utcnow)
     updated_at = Column(TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow)
 

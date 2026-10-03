@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { AppState } from 'react-native';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { apiClient } from '../lib/apiClient';
@@ -32,6 +33,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [customerProfile, setCustomerProfile] = useState<CustomerProfileGeo | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Read by the AppState listener below, which is registered once and would
+  // otherwise only ever see the first render's values.
+  const sessionRef = useRef<Session | null>(null);
+  const profileRef = useRef<Profile | null>(null);
+  useEffect(() => {
+    sessionRef.current = session;
+    profileRef.current = profile;
+  }, [session, profile]);
+
   const loadProfile = async (userId: string) => {
     const { data, error } = await supabase
       .from('profiles')
@@ -47,21 +57,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     const loadedProfile = data as Profile;
-    setProfile(loadedProfile);
 
     // Farmers get two extra rows the signup trigger creates alongside
     // profiles — the root layout needs `farmerVerification.submitted_at` to
-    // decide whether a pending farmer belongs in the onboarding wizard or
-    // the "under review" screen.
+    // decide between the application and the farmer app. Fetched BEFORE
+    // setProfile so all three land in the same render: setting the profile
+    // first would briefly show a farmer with no verification row, and the
+    // route guard would bounce an already-submitted farmer to the
+    // application for a frame.
     if (loadedProfile.role === 'farmer') {
       const [farmerProfileResult, farmerVerificationResult] = await Promise.all([
         supabase.from('farmer_profiles').select('*').eq('id', userId).single(),
         supabase.from('farmer_verification').select('*').eq('id', userId).single(),
       ]);
-      if (!farmerProfileResult.error) setFarmerProfile(farmerProfileResult.data as FarmerProfile);
-      if (!farmerVerificationResult.error) setFarmerVerification(farmerVerificationResult.data as FarmerVerification);
+      setFarmerProfile(farmerProfileResult.error ? null : (farmerProfileResult.data as FarmerProfile));
+      setFarmerVerification(farmerVerificationResult.error ? null : (farmerVerificationResult.data as FarmerVerification));
       setCustomerProfile(null);
-    } else if (loadedProfile.role === 'customer') {
+      setProfile(loadedProfile);
+      return;
+    }
+
+    setProfile(loadedProfile);
+    if (loadedProfile.role === 'customer') {
       // Unlike farmerProfile above, this goes through apiClient/FastAPI
       // rather than a direct Supabase table read — /customers/me is the
       // only path that returns a geocoded lat/lng and triggers geocoding
@@ -88,18 +105,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!isMounted) return;
       setSession(session);
-      if (session?.user) 
-        {console.log("Access Token:", session.access_token);
-          await loadProfile(session.user.id);
-        }
-      
-          setLoading(false);
+      if (session?.user) await loadProfile(session.user.id);
+      setLoading(false);
     });
 
     const { data: listener } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setSession(session);
       if (session?.user) {
-        console.log("Updated Access Token:", session.access_token);
         await loadProfile(session.user.id);
       } else {
         setProfile(null);
@@ -109,9 +121,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     });
 
+    // A farmer gets approved or rejected in Studio while the app is in the
+    // background — re-read their status whenever the app comes back to the
+    // foreground, so the farmer app unlocks without logging out and back in.
+    const appStateSubscription = AppState.addEventListener('change', (state) => {
+      const userId = sessionRef.current?.user.id;
+      if (state === 'active' && userId && profileRef.current?.role === 'farmer') loadProfile(userId);
+    });
+
     return () => {
       isMounted = false;
       listener.subscription.unsubscribe();
+      appStateSubscription.remove();
     };
   }, []);
 
