@@ -9,6 +9,9 @@ export type RouteGuardInput = {
   applicationSubmitted: boolean;
   // useSegments() — the current route's path segments, groups included.
   segments: string[];
+  // A password reset is in progress — the emailed code may already have
+  // signed the user in, but the new password isn't saved yet (AuthContext).
+  passwordRecovery?: boolean;
 };
 
 // The one place that decides which part of the app a user belongs in.
@@ -20,9 +23,15 @@ export type RouteGuardInput = {
 // submitted; Products/Orders lock themselves until profiles.status is
 // 'active' (see app/(farmer)/(tabs)/). Only a REJECTED farmer may reopen the
 // application, to fix it and resubmit.
-export function resolveRedirect({ hasSession, profile, applicationSubmitted, segments }: RouteGuardInput): Href | null {
+export function resolveRedirect({ hasSession, profile, applicationSubmitted, segments, passwordRecovery }: RouteGuardInput): Href | null {
   const group = segments[0];
   const inAuth = group === '(auth)';
+
+  // Checked first: the reset code has signed the user in, but they must set
+  // a new password before going anywhere else (customer or farmer).
+  if (passwordRecovery) {
+    return inAuth && segments[1] === 'reset-password' ? null : '/(auth)/reset-password';
+  }
 
   if (!hasSession) return inAuth ? null : '/(auth)';
   if (!profile) return null; // profile still loading

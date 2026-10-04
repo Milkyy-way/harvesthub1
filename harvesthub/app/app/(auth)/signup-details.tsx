@@ -174,6 +174,21 @@ export default function SignupDetails() {
         </Text>
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
+        {error && /already (been )?registered/i.test(error) ? (
+          // Supabase's "User already registered" — offer the way back in
+          // instead of a dead end.
+          <Pressable
+            style={styles.resetHint}
+            onPress={() =>
+              router.push({
+                pathname: '/(auth)/forgot-password',
+                params: { email: (role === 'customer' ? customerValues.email : farmerValues.email).trim() },
+              })
+            }
+          >
+            <Text style={styles.resetHintText}>Forgot your password? Reset it</Text>
+          </Pressable>
+        ) : null}
 
         {role === 'customer' ? (
           <>
@@ -251,4 +266,6 @@ const styles = StyleSheet.create({
   googleButtonText: { color: colors.text, fontWeight: '600', fontSize: 13.5 },
   link: { marginTop: spacing.lg, alignItems: 'center' },
   linkText: { color: colors.primary, fontSize: 13 },
+  resetHint: { marginTop: -spacing.sm, marginBottom: spacing.md },
+  resetHintText: { color: colors.primary, fontSize: 13, fontWeight: '600' },
 });

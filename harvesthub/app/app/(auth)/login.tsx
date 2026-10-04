@@ -105,6 +105,13 @@ export default function Login() {
           value={password}
           onChangeText={setPassword}
         />
+        <Pressable
+          style={styles.forgot}
+          onPress={() => router.push({ pathname: '/(auth)/forgot-password', params: { email: email.trim() } })}
+          hitSlop={8}
+        >
+          <Text style={styles.forgotText}>Forgot password?</Text>
+        </Pressable>
 
         <Pressable style={styles.button} onPress={handleLogin} disabled={loading}>
           {loading ? <ActivityIndicator color={colors.white} /> : <Text style={styles.buttonText}>Log in</Text>}
@@ -151,6 +158,8 @@ const styles = StyleSheet.create({
     color: colors.text,
     backgroundColor: colors.surface,
   },
+  forgot: { alignSelf: 'flex-end', marginTop: -spacing.xs },
+  forgotText: { color: colors.primary, fontSize: 13, fontWeight: '600' },
   button: {
     backgroundColor: colors.primary,
     borderRadius: radius.pill,

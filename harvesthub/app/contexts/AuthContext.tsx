@@ -13,6 +13,13 @@ type AuthContextType = {
   customerProfile: CustomerProfileGeo | null;
   loading: boolean;
   refreshProfile: () => Promise<void>;
+  // True while a password reset is in progress: from just before the emailed
+  // code is verified (which signs the user in) until the new password is
+  // saved or they sign out. The route guard keeps them on the reset screen
+  // meanwhile instead of treating the code's sign-in as a normal login.
+  passwordRecovery: boolean;
+  startPasswordRecovery: () => void;
+  finishPasswordRecovery: () => void;
 };
 
 const AuthContext = createContext<AuthContextType>({
@@ -23,6 +30,9 @@ const AuthContext = createContext<AuthContextType>({
   customerProfile: null,
   loading: true,
   refreshProfile: async () => {},
+  passwordRecovery: false,
+  startPasswordRecovery: () => {},
+  finishPasswordRecovery: () => {},
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -32,6 +42,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [farmerVerification, setFarmerVerification] = useState<FarmerVerification | null>(null);
   const [customerProfile, setCustomerProfile] = useState<CustomerProfileGeo | null>(null);
   const [loading, setLoading] = useState(true);
+  const [passwordRecovery, setPasswordRecovery] = useState(false);
+
+  // Called by the reset screen BEFORE verifyOtp(): verifying the code signs
+  // the user in, and the flag must already be set when that session lands so
+  // the route guard never treats it as an ordinary login.
+  const startPasswordRecovery = () => setPasswordRecovery(true);
+  const finishPasswordRecovery = () => setPasswordRecovery(false);
 
   // Read by the AppState listener below, which is registered once and would
   // otherwise only ever see the first render's values.
@@ -118,6 +135,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setFarmerProfile(null);
         setFarmerVerification(null);
         setCustomerProfile(null);
+        setPasswordRecovery(false);
       }
     });
 
@@ -142,7 +160,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ session, profile, farmerProfile, farmerVerification, customerProfile, loading, refreshProfile }}
+      value={{
+        session,
+        profile,
+        farmerProfile,
+        farmerVerification,
+        customerProfile,
+        loading,
+        refreshProfile,
+        passwordRecovery,
+        startPasswordRecovery,
+        finishPasswordRecovery,
+      }}
     >
       {children}
     </AuthContext.Provider>

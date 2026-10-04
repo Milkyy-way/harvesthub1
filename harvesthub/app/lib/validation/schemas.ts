@@ -83,6 +83,14 @@ function withMatchingPasswords<T extends z.ZodType<{ password: string; confirmPa
   });
 }
 
+// Setting a new password with an emailed reset code — same password rules
+// as signup. Supabase's email OTP length is configurable (6 by default,
+// up to 10), so any 6–10 digit code is accepted here.
+export const resetCodeSchema = z.string().trim().regex(/^\d{6,10}$/, 'Enter the code from the email');
+export const newPasswordSchema = withMatchingPasswords(
+  z.object({ password: passwordSchema, confirmPassword: z.string() })
+);
+
 export const customerSignupSchema = withMatchingPasswords(
   z
     .object({

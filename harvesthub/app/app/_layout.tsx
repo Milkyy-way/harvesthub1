@@ -28,7 +28,7 @@ if (!stripePublishableKey) {
 SplashScreen.preventAutoHideAsync();
 
 function RootNavigation() {
-  const { session, profile, farmerVerification, loading } = useAuth();
+  const { session, profile, farmerVerification, loading, passwordRecovery } = useAuth();
   const segments = useSegments();
   const router = useRouter();
 
@@ -42,9 +42,10 @@ function RootNavigation() {
       profile,
       applicationSubmitted: !!farmerVerification?.submitted_at,
       segments,
+      passwordRecovery,
     });
     if (target) router.replace(target);
-  }, [session, profile, farmerVerification, loading, segments, router]);
+  }, [session, profile, farmerVerification, loading, segments, router, passwordRecovery]);
 
   if (loading) {
     return (
