@@ -18,6 +18,16 @@ export interface TopProduct {
   quantity: number;
 }
 
+// The donut ("What you buy"): item totals per category in range, largest
+// first. color_slot is the category's fixed chart color (one of the
+// customer's all-time top categories) — null means it's grouped as "Other".
+export interface CategorySpend {
+  slug: string;
+  name: string;
+  amount: number;
+  color_slot: number | null;
+}
+
 // spending_all_time/savings_all_time/average_order_value/favorite_farm/
 // most_ordered_product/orders_* are all scoped to whatever `range` was
 // requested (all-time when omitted) — see DateRangeFilter and
@@ -34,6 +44,7 @@ export interface DashboardSummary {
   activity_last_7_days: DailyActivity[];
   favorite_farm: FavoriteFarm | null;
   most_ordered_product: TopProduct | null;
+  spending_by_category: CategorySpend[];
 }
 
 export type DashboardRangeKey = 'week' | 'month' | '3m' | '6m' | 'all';

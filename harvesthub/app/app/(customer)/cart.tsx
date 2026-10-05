@@ -235,8 +235,8 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl, gap: spacing.sm },
   emptyText: { color: colors.textMuted, fontSize: 14, textAlign: 'center' },
   footer: {
-    backgroundColor: colors.surface,
-    borderTopWidth: 1,
+    backgroundColor: colors.background,
+    borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.border,
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
@@ -246,7 +246,7 @@ const styles = StyleSheet.create({
   totalValue: { fontSize: 20, fontWeight: '700', color: colors.text },
   checkoutButton: {
     backgroundColor: colors.primary,
-    borderRadius: radius.md,
+    borderRadius: radius.pill,
     paddingVertical: 14,
     alignItems: 'center',
   },

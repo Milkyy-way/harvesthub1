@@ -12,6 +12,8 @@ type Props<T extends string> = {
   multiple?: boolean;
 };
 
+// Choice chips — white pills floating on the page background (soft shadow,
+// no border), green when selected. Same look as the category/filter chips.
 export function TagSelector<T extends string>({ options, value, onChange, multiple = true }: Props<T>) {
   const toggle = (option: T) => {
     if (!multiple) {
@@ -26,11 +28,7 @@ export function TagSelector<T extends string>({ options, value, onChange, multip
       {options.map((option) => {
         const active = value.includes(option.value);
         return (
-          <Pressable
-            key={option.value}
-            style={[styles.tag, active && styles.tagActive]}
-            onPress={() => toggle(option.value)}
-          >
+          <Pressable key={option.value} style={[styles.tag, active && styles.tagActive]} onPress={() => toggle(option.value)}>
             <Text style={[styles.tagText, active && styles.tagTextActive]}>{option.label}</Text>
           </Pressable>
         );
@@ -40,16 +38,19 @@ export function TagSelector<T extends string>({ options, value, onChange, multip
 }
 
 const styles = StyleSheet.create({
-  wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, marginBottom: spacing.md },
+  wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.md },
   tag: {
-    borderWidth: 1,
-    borderColor: colors.border,
     borderRadius: radius.pill,
     paddingVertical: 8,
     paddingHorizontal: 14,
     backgroundColor: colors.surface,
+    shadowColor: colors.primaryDark,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.07,
+    shadowRadius: 4,
+    elevation: 1,
   },
-  tagActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  tagText: { color: colors.textMuted, fontSize: 13, fontWeight: '500' },
+  tagActive: { backgroundColor: colors.primary },
+  tagText: { color: colors.text, fontSize: 13, fontWeight: '600' },
   tagTextActive: { color: colors.white },
 });

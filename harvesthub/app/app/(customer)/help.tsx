@@ -54,14 +54,6 @@ const styles = StyleSheet.create({
   back: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontFamily: fonts.headline, fontSize: 17, color: colors.text },
   content: { padding: spacing.lg },
-  note: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderStyle: 'dashed',
-    padding: spacing.md,
-    marginTop: spacing.sm,
-  },
+  note: { backgroundColor: colors.tint, borderRadius: radius.lg, padding: spacing.md, marginTop: spacing.lg },
   noteText: { fontSize: 12.5, color: colors.textMuted, lineHeight: 18 },
 });

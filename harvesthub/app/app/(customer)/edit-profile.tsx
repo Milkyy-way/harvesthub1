@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { z } from 'zod';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { colors, spacing, radius } from '../../constants/theme';
+import { colors, spacing, radius, fonts } from '../../constants/theme';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { TextField } from '../../components/TextField';
@@ -159,12 +159,12 @@ const styles = StyleSheet.create({
   back: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: 17, fontWeight: '700', color: colors.text },
   content: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xl },
-  sectionTitle: { fontSize: 13, fontWeight: '700', color: colors.text, marginBottom: spacing.sm, marginTop: spacing.sm },
+  sectionTitle: { fontFamily: fonts.headline, fontSize: 19, color: colors.text, marginBottom: spacing.sm, marginTop: spacing.lg },
   row: { flexDirection: 'row', gap: spacing.sm },
   flex1: { flex: 1 },
   saveButton: {
     backgroundColor: colors.primary,
-    borderRadius: radius.md,
+    borderRadius: radius.pill,
     paddingVertical: 14,
     alignItems: 'center',
     marginTop: spacing.lg,

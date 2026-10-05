@@ -269,5 +269,5 @@ const styles = StyleSheet.create({
   },
   viewToggleButton: { width: 30, height: 30, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' },
   viewToggleButtonActive: { backgroundColor: colors.primary },
-  gridRow: { paddingHorizontal: spacing.lg, gap: spacing.sm },
+  gridRow: { paddingHorizontal: spacing.lg, gap: spacing.md },
 });

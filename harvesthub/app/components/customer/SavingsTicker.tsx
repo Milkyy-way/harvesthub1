@@ -7,21 +7,25 @@ type Props = {
   amount: number;
 };
 
+// A warm, tinted banner (not a white card) — sits on the page background
+// like a promo strip.
 export function SavingsTicker({ amount }: Props) {
   const router = useRouter();
 
   return (
-    <Pressable style={styles.container} onPress={() => router.push('/(customer)/(tabs)/dashboard')}>
-      <View style={styles.left}>
-        <View style={styles.icon}>
-          <MaterialIcons name="savings" size={17} color="#8A6A22" />
-        </View>
-        <View>
-          <Text style={styles.amount}>${amount.toFixed(2)} saved</Text>
-          <Text style={styles.label}>buying direct this month</Text>
-        </View>
+    <Pressable
+      style={({ pressed }) => [styles.container, pressed && styles.pressed]}
+      onPress={() => router.push('/(customer)/(tabs)/dashboard')}
+    >
+      <Text style={styles.emoji}>🧺</Text>
+      <View style={styles.textWrap}>
+        <Text style={styles.amount}>${amount.toFixed(2)} saved</Text>
+        <Text style={styles.label}>buying direct from local farms</Text>
       </View>
-      <Text style={styles.cta}>Details ›</Text>
+      <View style={styles.cta}>
+        <Text style={styles.ctaText}>Details</Text>
+        <MaterialIcons name="chevron-right" size={16} color={colors.primaryDark} />
+      </View>
     </Pressable>
   );
 }
@@ -29,29 +33,20 @@ export function SavingsTicker({ amount }: Props) {
 const styles = StyleSheet.create({
   container: {
     marginHorizontal: spacing.lg,
-    marginTop: -16,
-    backgroundColor: colors.surface,
+    marginTop: spacing.lg,
+    backgroundColor: `${colors.accent}2E`,
     borderRadius: radius.lg,
-    padding: spacing.md,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    shadowColor: colors.primaryDark,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.14,
-    shadowRadius: 16,
-    elevation: 4,
+    gap: spacing.md,
   },
-  left: { flexDirection: 'row', alignItems: 'center', gap: 11 },
-  icon: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: `${colors.accent}26`,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  amount: { fontFamily: fonts.headline, fontSize: 16, color: colors.text },
-  label: { fontSize: 10.5, color: colors.textMuted, marginTop: 1 },
-  cta: { fontSize: 10.5, fontWeight: '700', color: colors.primary },
+  pressed: { opacity: 0.8 },
+  emoji: { fontSize: 30 },
+  textWrap: { flex: 1 },
+  amount: { fontFamily: fonts.headlineBold, fontSize: 20, color: colors.primaryDark },
+  label: { fontSize: 12.5, color: colors.text, marginTop: 1 },
+  cta: { flexDirection: 'row', alignItems: 'center' },
+  ctaText: { fontSize: 13, fontWeight: '700', color: colors.primaryDark },
 });

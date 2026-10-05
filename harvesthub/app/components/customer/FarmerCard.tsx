@@ -11,6 +11,8 @@ type Props = {
   onPress: () => void;
 };
 
+// No card box: a big rounded photo, then the farm's name and details right
+// under it on the page background — the photo carries the design.
 export function FarmerCard({ farmer, onPress }: Props) {
   // photo_url being present doesn't guarantee the image actually loads (a
   // dead URL, blocked host, etc.) — without this, a failed load just
@@ -20,58 +22,67 @@ export function FarmerCard({ farmer, onPress }: Props) {
 
   return (
     <Pressable style={({ pressed }) => [styles.container, pressed && styles.pressed]} onPress={onPress}>
-      {showPhoto ? (
-        <Image
-          source={{ uri: farmer.photo_url! }}
-          style={styles.photo}
-          contentFit="cover"
-          transition={150}
-          onError={() => setImageFailed(true)}
-        />
-      ) : (
-        <View style={[styles.photo, styles.photoFallback]}>
-          <MaterialIcons name="storefront" size={40} color={colors.textMuted} />
+      <View>
+        {showPhoto ? (
+          <Image
+            source={{ uri: farmer.photo_url! }}
+            style={styles.photo}
+            contentFit="cover"
+            transition={150}
+            onError={() => setImageFailed(true)}
+          />
+        ) : (
+          <View style={[styles.photo, styles.photoFallback]}>
+            <MaterialIcons name="storefront" size={44} color={colors.primaryMid} />
+          </View>
+        )}
+        <View style={styles.distanceBadge}>
+          <MaterialIcons name="near-me" size={12} color={colors.primaryDark} />
+          <Text style={styles.distanceBadgeText}>{formatDistance(farmer.distance_km)}</Text>
         </View>
-      )}
-      <View style={styles.info}>
-        <Text style={styles.name} numberOfLines={1}>
-          {farmer.farm_name}
-        </Text>
-        <View style={styles.metaRow}>
-          <MaterialIcons name="place" size={14} color={colors.textMuted} />
-          <Text style={styles.distance}>{formatDistance(farmer.distance_km)} away</Text>
-        </View>
+      </View>
+
+      <Text style={styles.name} numberOfLines={1}>
+        {farmer.farm_name}
+      </Text>
+      <View style={styles.metaRow}>
+        <MaterialIcons name="storefront" size={14} color={colors.textMuted} />
+        <Text style={styles.meta}>Pickup at the farm</Text>
         {farmer.matched_categories.length > 0 ? (
-          <Text style={styles.matched} numberOfLines={1}>
-            {farmer.matched_categories.join(' · ')}
-          </Text>
+          <View style={styles.matchedTag}>
+            <Text style={styles.matchedText} numberOfLines={1}>
+              {farmer.matched_categories.join(' · ')}
+            </Text>
+          </View>
         ) : null}
       </View>
     </Pressable>
   );
 }
 
-const CARD_IMAGE_HEIGHT = 150;
+const CARD_IMAGE_HEIGHT = 176;
 
 const styles = StyleSheet.create({
-  container: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    marginHorizontal: spacing.lg,
-    marginBottom: spacing.md,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
-  },
+  container: { marginHorizontal: spacing.lg, marginBottom: spacing.xl },
   pressed: { opacity: 0.85 },
-  photo: { width: '100%', height: CARD_IMAGE_HEIGHT, backgroundColor: colors.background },
+  photo: { width: '100%', height: CARD_IMAGE_HEIGHT, borderRadius: 20, backgroundColor: '#EAF2EC' },
   photoFallback: { alignItems: 'center', justifyContent: 'center' },
-  info: { padding: spacing.md },
-  name: { fontFamily: fonts.headline, fontSize: 17, color: colors.text, marginBottom: 6 },
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  distance: { fontSize: 13, color: colors.textMuted },
-  matched: { fontSize: 12, color: colors.primary, marginTop: 6, textTransform: 'capitalize', fontWeight: '500' },
+  distanceBadge: {
+    position: 'absolute',
+    left: 10,
+    bottom: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: colors.accent,
+    borderRadius: radius.sm,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  distanceBadgeText: { color: colors.primaryDark, fontSize: 12, fontWeight: '800' },
+  name: { fontFamily: fonts.headline, fontSize: 19, color: colors.text, marginTop: spacing.sm },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 },
+  meta: { fontSize: 13, color: colors.textMuted, marginRight: 4 },
+  matchedTag: { flexShrink: 1, backgroundColor: '#EAF2EC', borderRadius: radius.sm, paddingHorizontal: 7, paddingVertical: 2 },
+  matchedText: { fontSize: 12, fontWeight: '700', color: colors.primary, textTransform: 'capitalize' },
 });

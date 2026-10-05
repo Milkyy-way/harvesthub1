@@ -1,5 +1,6 @@
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import { colors, spacing, radius } from '../../constants/theme';
 import { Logo } from '../../components/Logo';
 
@@ -8,6 +9,8 @@ export default function Welcome() {
 
   return (
     <View style={styles.container}>
+      {/* The one green full-screen moment (brand splash) — light status bar. */}
+      <StatusBar style="light" />
       <View style={styles.logoWrap}>
         <Logo size={128} />
       </View>

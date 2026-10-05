@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { colors, spacing, radius, fonts } from '../../constants/theme';
+import { colors, spacing, radius } from '../../constants/theme';
 import type { ProductItem } from '../../types/database';
+import { QuantityStepper } from './QuantityStepper';
 
 type Props = {
   product: ProductItem;
@@ -15,8 +16,9 @@ type Props = {
 // Same threshold as ProductCard.tsx (list view) — keep in sync.
 const LOW_STOCK_THRESHOLD = 11;
 
-// Grid counterpart to ProductCard — same data/behavior, laid out as a
-// compact vertical tile for a 2-column grid instead of a full-width row.
+// Grid counterpart to ProductCard — same data/behavior as a 2-column tile:
+// rounded photo with the add/quantity control on it, text underneath on the
+// page background (no card box).
 export function ProductCardGrid({ product, pending, onIncrement, onDecrement }: Props) {
   const [imageFailed, setImageFailed] = useState(false);
   const outOfStock = product.quantity_available <= 0;
@@ -25,98 +27,73 @@ export function ProductCardGrid({ product, pending, onIncrement, onDecrement }: 
   const showPhoto = Boolean(product.image_url) && !imageFailed;
 
   return (
-    <View style={[styles.container, outOfStock && styles.outOfStock]}>
-      {showPhoto ? (
-        <Image
-          source={{ uri: product.image_url! }}
-          style={styles.photo}
-          contentFit="cover"
-          transition={150}
-          onError={() => setImageFailed(true)}
-        />
-      ) : (
-        <View style={[styles.photo, styles.photoFallback]}>
-          <MaterialIcons name="eco" size={30} color={colors.textMuted} />
+    <View style={styles.container}>
+      <View>
+        <View style={outOfStock && styles.dimmed}>
+          {showPhoto ? (
+            <Image
+              source={{ uri: product.image_url! }}
+              style={styles.photo}
+              contentFit="cover"
+              transition={150}
+              onError={() => setImageFailed(true)}
+            />
+          ) : (
+            <View style={[styles.photo, styles.photoFallback]}>
+              <MaterialIcons name="eco" size={32} color={colors.primaryMid} />
+            </View>
+          )}
         </View>
-      )}
+        {outOfStock ? (
+          <View style={styles.soldOut}>
+            <Text style={styles.soldOutText}>Out of stock</Text>
+          </View>
+        ) : (
+          <View style={styles.stepper}>
+            <QuantityStepper
+              quantity={product.cart_quantity}
+              onIncrement={onIncrement}
+              onDecrement={onDecrement}
+              canIncrement={!pending && !atMax}
+              canDecrement={!pending && product.cart_quantity > 0}
+            />
+          </View>
+        )}
+      </View>
 
-      <View style={styles.info}>
+      <View style={outOfStock && styles.dimmed}>
         <Text style={styles.name} numberOfLines={1}>
           {product.name}
         </Text>
         <Text style={styles.price}>
-          ${product.price.toFixed(2)} <Text style={styles.unit}>/{product.unit}</Text>
+          ${product.price.toFixed(2)} <Text style={styles.unit}>/ {product.unit}</Text>
         </Text>
-        {outOfStock ? (
-          <Text style={styles.outOfStockText}>Out of stock</Text>
-        ) : lowStock ? (
-          <Text style={styles.lowStockText}>Only {product.quantity_available} left</Text>
-        ) : null}
-      </View>
-
-      <View style={styles.stepper}>
-        <Pressable
-          style={[styles.stepperButton, (outOfStock || pending || product.cart_quantity === 0) && styles.stepperButtonDisabled]}
-          onPress={onDecrement}
-          disabled={outOfStock || pending || product.cart_quantity === 0}
-          hitSlop={8}
-        >
-          <MaterialIcons name="remove" size={16} color={colors.primary} />
-        </Pressable>
-        <Text style={styles.stepperValue}>{product.cart_quantity}</Text>
-        <Pressable
-          style={[styles.stepperButton, (outOfStock || pending || atMax) && styles.stepperButtonDisabled]}
-          onPress={onIncrement}
-          disabled={outOfStock || pending || atMax}
-          hitSlop={8}
-        >
-          <MaterialIcons name="add" size={16} color={colors.primary} />
-        </Pressable>
+        {lowStock ? <Text style={styles.lowStockText}>Only {product.quantity_available} left</Text> : null}
       </View>
     </View>
   );
 }
 
-const PHOTO_HEIGHT = 110;
+const PHOTO_HEIGHT = 140;
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    overflow: 'hidden',
-    marginBottom: spacing.sm,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  outOfStock: { opacity: 0.5 },
-  photo: { width: '100%', height: PHOTO_HEIGHT, backgroundColor: colors.background },
+  container: { flex: 1, marginBottom: spacing.lg },
+  dimmed: { opacity: 0.45 },
+  photo: { width: '100%', height: PHOTO_HEIGHT, borderRadius: radius.lg, backgroundColor: '#EAF2EC' },
   photoFallback: { alignItems: 'center', justifyContent: 'center' },
-  info: { padding: spacing.sm, paddingBottom: spacing.xs },
-  name: { fontFamily: fonts.headline, fontSize: 13.5, color: colors.text },
-  price: { fontSize: 13, fontWeight: '600', color: colors.primaryDark, marginTop: 4 },
-  unit: { fontSize: 11, fontWeight: '400', color: colors.textMuted },
-  outOfStockText: { fontSize: 11, color: colors.danger, fontWeight: '600', marginTop: 4 },
-  lowStockText: { fontSize: 11, color: colors.accent, fontWeight: '600', marginTop: 4 },
-  stepper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.sm,
-    paddingBottom: spacing.sm,
+  stepper: { position: 'absolute', right: 8, bottom: 8 },
+  soldOut: {
+    position: 'absolute',
+    left: 8,
+    bottom: 8,
+    backgroundColor: colors.text,
+    borderRadius: radius.sm,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
   },
-  stepperButton: {
-    width: 28,
-    height: 28,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  stepperButtonDisabled: { opacity: 0.35 },
-  stepperValue: { fontSize: 14, fontWeight: '600', color: colors.text },
+  soldOutText: { color: colors.white, fontSize: 11, fontWeight: '800' },
+  name: { fontSize: 15, fontWeight: '700', color: colors.text, marginTop: spacing.sm },
+  price: { fontSize: 14, fontWeight: '700', color: colors.primaryDark, marginTop: 2 },
+  unit: { fontSize: 12, fontWeight: '400', color: colors.textMuted },
+  lowStockText: { fontSize: 12, color: colors.berry, fontWeight: '700', marginTop: 2 },
 });

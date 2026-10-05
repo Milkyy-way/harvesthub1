@@ -11,6 +11,8 @@ import { colors, spacing, radius, fonts } from '../../../constants/theme';
 import { FARM_TYPE_OPTIONS } from '../../../lib/validation/schemas';
 import { HeroShell } from '../../../components/customer/HeroShell';
 import { SettingsRow } from '../../../components/customer/SettingsRow';
+import { Section } from '../../../components/Section';
+import { InfoRow } from '../../../components/InfoRow';
 import { VerificationStatusCard } from '../../../components/farmer/VerificationStatusCard';
 import type { FarmerRatings } from '../../../types/farmer';
 
@@ -119,27 +121,6 @@ export default function FarmerAccount() {
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>{title}</Text>
-      {children}
-    </View>
-  );
-}
-
-function InfoRow({ icon, label, value }: { icon: React.ComponentProps<typeof MaterialIcons>['name']; label: string; value: string }) {
-  return (
-    <View style={styles.infoRow}>
-      <MaterialIcons name={icon} size={18} color={colors.textMuted} />
-      <View style={styles.infoTextWrap}>
-        <Text style={styles.infoLabel}>{label}</Text>
-        <Text style={styles.infoValue}>{value}</Text>
-      </View>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   content: { paddingBottom: spacing.xl },
@@ -158,22 +139,6 @@ const styles = StyleSheet.create({
   email: { fontSize: 13, color: colors.textMuted, marginTop: 2 },
   groupLabel: { fontSize: 13, fontWeight: '700', color: colors.text, marginBottom: spacing.sm },
   groupLabelSpaced: { marginTop: spacing.md },
-  section: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    marginBottom: spacing.md,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  sectionTitle: { fontSize: 13, fontWeight: '700', color: colors.text, marginBottom: spacing.sm },
-  infoRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, paddingVertical: 4 },
-  infoTextWrap: { flex: 1 },
-  infoLabel: { fontSize: 11, color: colors.textMuted },
-  infoValue: { fontSize: 14, color: colors.text, marginTop: 1 },
   logoutButton: {
     flexDirection: 'row',
     alignItems: 'center',

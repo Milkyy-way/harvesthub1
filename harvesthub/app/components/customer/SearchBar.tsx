@@ -1,4 +1,4 @@
-import { View, TextInput, StyleSheet } from 'react-native';
+import { View, TextInput, Pressable, StyleSheet } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { colors, spacing, radius } from '../../constants/theme';
 
@@ -6,26 +6,28 @@ type Props = {
   value: string;
   onChangeText: (text: string) => void;
   placeholder?: string;
-  // 'frosted' sits directly on Header's gradient hero (see Header.tsx,
-  // wrapped in a BlurView there) — light text/icon on a translucent
-  // background, no own margins since the hero controls its own spacing.
-  variant?: 'default' | 'frosted';
 };
 
-export function SearchBar({ value, onChangeText, placeholder = 'Search products, farms', variant = 'default' }: Props) {
-  const frosted = variant === 'frosted';
+// White search pill floating on the page background (soft shadow, no
+// border) — one of the few white surfaces on the shopping screens.
+export function SearchBar({ value, onChangeText, placeholder = 'Search products, farms' }: Props) {
   return (
-    <View style={[styles.container, frosted && styles.containerFrosted]}>
-      <MaterialIcons name="search" size={20} color={frosted ? 'rgba(246,242,231,0.75)' : colors.textMuted} />
+    <View style={styles.container}>
+      <MaterialIcons name="search" size={21} color={colors.text} />
       <TextInput
-        style={[styles.input, frosted && styles.inputFrosted]}
+        style={styles.input}
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
-        placeholderTextColor={frosted ? 'rgba(246,242,231,0.75)' : colors.textMuted}
+        placeholderTextColor={colors.textMuted}
         returnKeyType="search"
         autoCorrect={false}
       />
+      {value ? (
+        <Pressable onPress={() => onChangeText('')} hitSlop={10}>
+          <MaterialIcons name="cancel" size={18} color={colors.textMuted} />
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -34,27 +36,19 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.xs,
+    gap: spacing.sm,
     backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
     borderRadius: radius.pill,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 10,
+    paddingHorizontal: spacing.md + 2,
+    paddingVertical: 13,
     marginHorizontal: spacing.lg,
     marginTop: spacing.md,
     marginBottom: spacing.md,
-  },
-  containerFrosted: {
-    backgroundColor: 'transparent',
-    borderWidth: 0,
-    borderRadius: 0,
-    marginHorizontal: 0,
-    marginTop: 0,
-    marginBottom: 0,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 13,
+    shadowColor: colors.primaryDark,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 3,
   },
   input: { flex: 1, fontSize: 15, color: colors.text, padding: 0 },
-  inputFrosted: { color: colors.background, fontSize: 13 },
 });

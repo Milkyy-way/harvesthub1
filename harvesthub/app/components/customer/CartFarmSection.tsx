@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { colors, spacing, radius } from '../../constants/theme';
+import { colors, spacing, radius, fonts } from '../../constants/theme';
 import { openDirections } from '../../lib/maps';
 import { CartLineItemRow } from './CartLineItemRow';
 import { FulfillmentSelector } from './FulfillmentSelector';
@@ -61,7 +61,7 @@ export function CartFarmSection({
           />
         ) : (
           <View style={[styles.photo, styles.photoFallback]}>
-            <MaterialIcons name="storefront" size={20} color={colors.textMuted} />
+            <MaterialIcons name="storefront" size={20} color={colors.primaryMid} />
           </View>
         )}
         <Text style={styles.farmName} numberOfLines={1}>
@@ -107,23 +107,19 @@ export function CartFarmSection({
 }
 
 const styles = StyleSheet.create({
+  // One farm's group straight on the page background, separated from the
+  // next farm by a line — no white card.
   container: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
     marginHorizontal: spacing.lg,
-    marginBottom: spacing.md,
-    padding: spacing.md,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
+    paddingVertical: spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
-  header: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.xs },
-  photo: { width: 32, height: 32, borderRadius: radius.sm, backgroundColor: colors.background },
+  header: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.xs },
+  photo: { width: 44, height: 44, borderRadius: radius.md, backgroundColor: colors.tint },
   photoFallback: { alignItems: 'center', justifyContent: 'center' },
-  farmName: { flex: 1, fontSize: 16, fontWeight: '700', color: colors.text },
-  items: { borderTopWidth: 1, borderTopColor: colors.border, marginTop: spacing.xs },
+  farmName: { flex: 1, fontFamily: fonts.headline, fontSize: 19, color: colors.text },
+  items: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, marginTop: spacing.sm },
   subtotalRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',

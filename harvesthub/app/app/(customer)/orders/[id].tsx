@@ -4,7 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { colors, spacing, radius } from '../../../constants/theme';
+import { colors, spacing, radius, fonts } from '../../../constants/theme';
 import { apiClient } from '../../../lib/apiClient';
 import { OrderStoreSection } from '../../../components/customer/OrderStoreSection';
 import type { Order, StoreOrder } from '../../../types/orders';
@@ -173,7 +173,7 @@ export default function OrderDetailScreen() {
           <>
             {justPlaced === '1' ? (
               <View style={styles.successBanner}>
-                <MaterialIcons name="check-circle" size={22} color={colors.white} />
+                <MaterialIcons name="check-circle" size={22} color={colors.primary} />
                 <Text style={styles.successText}>Order placed! Here&apos;s your confirmation.</Text>
               </View>
             ) : null}
@@ -235,21 +235,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.tint,
     marginHorizontal: spacing.lg,
     marginBottom: spacing.md,
     padding: spacing.md,
     borderRadius: radius.lg,
   },
-  successText: { color: colors.white, fontSize: 14, fontWeight: '600', flex: 1 },
+  successText: { color: colors.primaryDark, fontSize: 14, fontWeight: '600', flex: 1 },
   summary: { marginHorizontal: spacing.lg, marginBottom: spacing.md },
   summaryLabel: { fontSize: 13, color: colors.textMuted },
-  summaryTotal: { fontSize: 26, fontWeight: '700', color: colors.text, marginTop: 2 },
+  summaryTotal: { fontFamily: fonts.headlineBold, fontSize: 32, color: colors.text, marginTop: 2 },
   summaryPayment: { fontSize: 12, color: colors.textMuted, marginTop: 2, textTransform: 'capitalize' },
   cancelWholeButton: {
     borderWidth: 1,
     borderColor: colors.danger,
-    borderRadius: radius.md,
+    borderRadius: radius.pill,
     paddingVertical: 12,
     alignItems: 'center',
     marginHorizontal: spacing.lg,

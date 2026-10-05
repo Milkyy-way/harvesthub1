@@ -1,14 +1,13 @@
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
-import { BlurView } from 'expo-blur';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { colors, fonts } from '../../constants/theme';
-import { HeroShell } from './HeroShell';
+import { colors, spacing, fonts } from '../../constants/theme';
+import { Logo } from '../Logo';
 import { SearchBar } from './SearchBar';
 
 type Props = {
   addressCity: string | null;
-  nearbyFarmCount: number | null;
   searchValue: string;
   onSearchChange: (text: string) => void;
   cartItemCount: number;
@@ -16,29 +15,33 @@ type Props = {
   avatarInitial: string;
 };
 
-export function Header({
-  addressCity,
-  nearbyFarmCount,
-  searchValue,
-  onSearchChange,
-  cartItemCount,
-  onPressCart,
-  avatarInitial,
-}: Props) {
+// Home's sticky top: brand + location, cart, avatar, and the search pill —
+// sitting on the same page background as everything below it (no colored
+// hero block), so the page reads as one continuous surface. Everything else
+// on Home scrolls underneath.
+export function Header({ addressCity, searchValue, onSearchChange, cartItemCount, onPressCart, avatarInitial }: Props) {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   return (
-    <HeroShell
-      headline={`What's fresh near ${addressCity ?? 'you'} this week`}
-      subheadline={
-        nearbyFarmCount != null
-          ? `Fresh picks from ${nearbyFarmCount} farm${nearbyFarmCount === 1 ? '' : 's'} nearby.`
-          : 'Finding farms near you…'
-      }
-      right={
-        <>
-          <Pressable style={styles.cartButton} onPress={onPressCart} hitSlop={8}>
-            <MaterialIcons name="shopping-basket" size={19} color={colors.background} />
+    <View style={[styles.container, { paddingTop: insets.top + spacing.sm }]}>
+      <View style={styles.topRow}>
+        <View style={styles.brandRow}>
+          <Logo size={36} />
+          <View>
+            <Text style={styles.brandText}>HarvestHub</Text>
+            <View style={styles.locationRow}>
+              <MaterialIcons name="place" size={13} color={colors.primary} />
+              <Text style={styles.locationText} numberOfLines={1}>
+                {addressCity ? `Near ${addressCity}` : 'Finding farms near you'}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.actions}>
+          <Pressable style={styles.iconButton} onPress={onPressCart} hitSlop={8}>
+            <MaterialIcons name="shopping-basket" size={20} color={colors.primary} />
             {cartItemCount > 0 ? (
               <View style={styles.badge}>
                 <Text style={styles.badgeText}>{cartItemCount > 99 ? '99+' : cartItemCount}</Text>
@@ -48,26 +51,41 @@ export function Header({
           <Pressable style={styles.avatar} onPress={() => router.push('/(customer)/(tabs)/account')} hitSlop={4}>
             <Text style={styles.avatarText}>{avatarInitial}</Text>
           </Pressable>
-        </>
-      }
-    >
-      <BlurView intensity={40} tint="light" style={styles.searchWrap}>
-        <SearchBar value={searchValue} onChangeText={onSearchChange} variant="frosted" />
-      </BlurView>
-    </HeroShell>
+        </View>
+      </View>
+
+      <SearchBar value={searchValue} onChangeText={onSearchChange} />
+    </View>
   );
 }
 
-const AVATAR_SIZE = 38;
+const AVATAR_SIZE = 40;
 
 const styles = StyleSheet.create({
-  cartButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.14)',
+  container: { backgroundColor: colors.background },
+  topRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.lg,
+  },
+  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 1 },
+  brandText: { fontFamily: fonts.brand, fontSize: 16, color: colors.primaryDark, letterSpacing: 0.2 },
+  locationRow: { flexDirection: 'row', alignItems: 'center', gap: 2, marginTop: 1 },
+  locationText: { fontSize: 12.5, fontWeight: '600', color: colors.textMuted, maxWidth: 190 },
+  actions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  iconButton: {
+    width: AVATAR_SIZE,
+    height: AVATAR_SIZE,
+    borderRadius: AVATAR_SIZE / 2,
+    backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: colors.primaryDark,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 2,
   },
   badge: {
     position: 'absolute',
@@ -76,25 +94,19 @@ const styles = StyleSheet.create({
     minWidth: 18,
     height: 18,
     borderRadius: 9,
-    backgroundColor: colors.accent,
+    backgroundColor: colors.berry,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 4,
   },
-  badgeText: { color: colors.primaryDark, fontSize: 10, fontWeight: '800' },
+  badgeText: { color: colors.white, fontSize: 10, fontWeight: '800' },
   avatar: {
     width: AVATAR_SIZE,
     height: AVATAR_SIZE,
     borderRadius: AVATAR_SIZE / 2,
-    backgroundColor: colors.accent,
+    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarText: { fontFamily: fonts.headline, fontSize: 16, color: colors.primaryDark },
-  searchWrap: {
-    borderRadius: 12,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.25)',
-  },
+  avatarText: { fontFamily: fonts.headline, fontSize: 17, color: colors.background },
 });

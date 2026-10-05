@@ -4,7 +4,7 @@ import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { colors, spacing, radius } from '../../constants/theme';
+import { colors, spacing, radius, fonts } from '../../constants/theme';
 import { formatDistance } from './formatDistance';
 import type { FarmerDetail } from '../../types/database';
 
@@ -121,8 +121,8 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
-  info: { padding: spacing.lg, paddingBottom: spacing.md },
-  name: { fontSize: 22, fontWeight: '700', color: colors.text, marginBottom: spacing.xs },
+  info: { padding: spacing.lg, paddingBottom: spacing.xs },
+  name: { fontFamily: fonts.headlineBold, fontSize: 28, lineHeight: 34, color: colors.text, marginBottom: spacing.xs },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 },
   metaText: { fontSize: 13, color: colors.textMuted },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, marginTop: spacing.xs },

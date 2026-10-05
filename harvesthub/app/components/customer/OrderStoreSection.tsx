@@ -1,6 +1,6 @@
 import { View, Text, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { colors, spacing, radius } from '../../constants/theme';
+import { colors, spacing, radius, fonts } from '../../constants/theme';
 import type { StoreOrder } from '../../types/orders';
 import { RatingStars } from './RatingStars';
 
@@ -165,20 +165,16 @@ function BreakdownLine({ label, value, bold, highlight }: { label: string; value
 }
 
 const styles = StyleSheet.create({
+  // One farm's part of the order straight on the page background, a line
+  // between farms — no white card.
   container: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
     marginHorizontal: spacing.lg,
-    marginBottom: spacing.md,
-    padding: spacing.md,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
+    paddingVertical: spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.xs, gap: spacing.sm },
-  farmName: { flex: 1, fontSize: 16, fontWeight: '700', color: colors.text },
+  farmName: { flex: 1, fontFamily: fonts.headline, fontSize: 19, color: colors.text },
   statusPill: { borderRadius: radius.pill, paddingVertical: 4, paddingHorizontal: 10 },
   statusText: { fontSize: 11, fontWeight: '700' },
   fulfillmentRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: spacing.sm },

@@ -4,6 +4,7 @@ import { Slot, useRouter, useSegments } from 'expo-router';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import { StripeProvider } from '@stripe/stripe-react-native';
+import { StatusBar } from 'expo-status-bar';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import AntDesign from '@expo/vector-icons/AntDesign';
 import { Newsreader_600SemiBold, Newsreader_700Bold } from '@expo-google-fonts/newsreader';
@@ -76,6 +77,9 @@ export default function RootLayout() {
   return (
     <StripeProvider publishableKey={stripePublishableKey!} merchantIdentifier="merchant.com.harvesthub.app">
       <AuthProvider>
+        {/* Dark status-bar text everywhere: every screen now sits on the
+            light cream background (the welcome screen sets its own). */}
+        <StatusBar style="dark" />
         <RootNavigation />
       </AuthProvider>
     </StripeProvider>

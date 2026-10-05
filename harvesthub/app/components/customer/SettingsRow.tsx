@@ -10,17 +10,19 @@ type Props = {
   destructive?: boolean;
 };
 
+// A list row straight on the page background — tinted icon, label, chevron,
+// hairline underneath (no white box). Stack several for a menu.
 export function SettingsRow({ icon, label, caption, onPress, destructive }: Props) {
   return (
     <Pressable style={({ pressed }) => [styles.row, pressed && styles.pressed]} onPress={onPress}>
       <View style={[styles.iconWrap, destructive && styles.iconWrapDestructive]}>
-        <MaterialIcons name={icon} size={18} color={destructive ? colors.danger : colors.primary} />
+        <MaterialIcons name={icon} size={19} color={destructive ? colors.danger : colors.primary} />
       </View>
       <View style={styles.textWrap}>
         <Text style={[styles.label, destructive && styles.labelDestructive]}>{label}</Text>
         {caption ? <Text style={styles.caption}>{caption}</Text> : null}
       </View>
-      {!destructive ? <MaterialIcons name="chevron-right" size={20} color={colors.textMuted} /> : null}
+      {!destructive ? <MaterialIcons name="chevron-right" size={22} color={colors.textMuted} /> : null}
     </Pressable>
   );
 }
@@ -29,24 +31,23 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    marginBottom: spacing.sm,
+    gap: spacing.md,
+    paddingVertical: spacing.md - 2,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
   },
-  pressed: { opacity: 0.7 },
+  pressed: { opacity: 0.6 },
   iconWrap: {
-    width: 34,
-    height: 34,
-    borderRadius: radius.md,
-    backgroundColor: '#EAF2EC',
+    width: 38,
+    height: 38,
+    borderRadius: radius.pill,
+    backgroundColor: colors.tint,
     alignItems: 'center',
     justifyContent: 'center',
   },
   iconWrapDestructive: { backgroundColor: '#F6E7E5' },
   textWrap: { flex: 1 },
-  label: { fontSize: 14, fontWeight: '600', color: colors.text },
+  label: { fontSize: 15, fontWeight: '600', color: colors.text },
   labelDestructive: { color: colors.danger },
-  caption: { fontSize: 11, color: colors.textMuted, marginTop: 1 },
+  caption: { fontSize: 12.5, color: colors.textMuted, marginTop: 1 },
 });

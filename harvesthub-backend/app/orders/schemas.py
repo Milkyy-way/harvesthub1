@@ -115,6 +115,13 @@ class TopProductOut(BaseModel):
     quantity: int
 
 
+class CategorySpendOut(BaseModel):
+    slug: str  # 'other' for lines whose product no longer exists
+    name: str
+    amount: float  # item value only — fees and tax excluded
+    color_slot: Optional[int]  # fixed chart color for an all-time top category; null = "Other"
+
+
 class DashboardSummaryOut(BaseModel):
     orders_total: int
     orders_active: int
@@ -128,3 +135,4 @@ class DashboardSummaryOut(BaseModel):
     activity_last_7_days: list[DailyActivityOut]
     favorite_farm: Optional[FavoriteFarmOut]
     most_ordered_product: Optional[TopProductOut]
+    spending_by_category: list[CategorySpendOut]  # in range, largest first

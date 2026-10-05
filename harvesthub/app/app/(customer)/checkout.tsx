@@ -4,7 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useStripe } from '@stripe/stripe-react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { colors, spacing, radius } from '../../constants/theme';
+import { colors, spacing, radius, fonts } from '../../constants/theme';
 import { apiClient } from '../../lib/apiClient';
 import { useCheckoutDraft } from '../../contexts/CheckoutDraftContext';
 import { CheckoutFarmSection } from '../../components/customer/CheckoutFarmSection';
@@ -295,35 +295,24 @@ const styles = StyleSheet.create({
   scrollContent: { paddingTop: spacing.sm, paddingBottom: spacing.xl },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
   errorText: { color: colors.textMuted, fontSize: 14, textAlign: 'center' },
-  paymentSection: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    marginHorizontal: spacing.lg,
-    marginTop: spacing.xs,
-    padding: spacing.md,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  paymentTitle: { fontSize: 14, fontWeight: '700', color: colors.text, marginBottom: spacing.sm },
+  paymentSection: { marginHorizontal: spacing.lg, marginTop: spacing.lg },
+  paymentTitle: { fontFamily: fonts.headline, fontSize: 19, color: colors.text, marginBottom: spacing.sm },
   paymentOption: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: radius.md,
-    padding: spacing.sm,
-    marginBottom: spacing.xs,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
   },
-  paymentOptionSelected: { borderColor: colors.primary, backgroundColor: '#EAF2EC' },
+  paymentOptionSelected: { borderColor: colors.primary, backgroundColor: colors.tint },
   paymentOptionLabel: { flex: 1, fontSize: 14, color: colors.text },
   paymentOptionLabelSelected: { fontWeight: '700' },
   footer: {
-    backgroundColor: colors.surface,
-    borderTopWidth: 1,
+    backgroundColor: colors.background,
+    borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.border,
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
@@ -336,7 +325,7 @@ const styles = StyleSheet.create({
   totalValue: { fontSize: 20, fontWeight: '700', color: colors.text },
   placeOrderButton: {
     backgroundColor: colors.primary,
-    borderRadius: radius.md,
+    borderRadius: radius.pill,
     paddingVertical: 14,
     alignItems: 'center',
   },

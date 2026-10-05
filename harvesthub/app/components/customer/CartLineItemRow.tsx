@@ -58,7 +58,14 @@ export function CartLineItemRow({ item, pending, onIncrement, onDecrement, onRem
 }
 
 const styles = StyleSheet.create({
-  container: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.sm, gap: spacing.sm },
+  container: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: spacing.sm + 2,
+    gap: spacing.sm,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
   info: { flex: 1, marginRight: spacing.xs },
   name: { fontSize: 14, fontWeight: '600', color: colors.text },
   priceLine: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
@@ -66,13 +73,17 @@ const styles = StyleSheet.create({
   lineTotal: { fontSize: 14, fontWeight: '600', color: colors.primaryDark, minWidth: 56, textAlign: 'right' },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   stepperButton: {
-    width: 26,
-    height: 26,
+    width: 28,
+    height: 28,
     borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: colors.border,
+    backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: colors.primaryDark,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.12,
+    shadowRadius: 3,
+    elevation: 2,
   },
   stepperButtonDisabled: { opacity: 0.35 },
   stepperValue: { fontSize: 13, fontWeight: '600', color: colors.text, minWidth: 16, textAlign: 'center' },

@@ -18,6 +18,23 @@ export const colors = {
   border: '#E7E2D3',
   danger: '#B3453A',
   white: '#FFFFFF',
+  // Soft green wash — for tinted tiles/banners/photo placeholders, the
+  // "surface" of choice now that content sits on the page background
+  // instead of in white boxes.
+  tint: '#EAF2EC',
+} as const;
+
+// Chart palette (dashboard donut etc.). Three categorical slots, assigned in
+// this fixed order, plus a neutral for "Other". Validated with the dataviz
+// skill's validator on the cream page background, all pairs (any two
+// segments can touch): lightness/chroma PASS, worst CVD ΔE 16.2 (protan),
+// normal-vision ΔE 30.3 — clear of the ≥8 / ≥15 floors. Gold is under 3:1
+// contrast on cream, so every chart using it must show visible labels
+// (the donut's legend does). Don't add a 4th hue: fold extra series into
+// "Other" instead.
+export const chartColors = {
+  categorical: ['#008300', '#eda100', '#4a3aa7'] as const,
+  other: '#B5AE9D',
 } as const;
 
 // 'Newsreader'/'Manrope' loaded via @expo-google-fonts in app/_layout.tsx.

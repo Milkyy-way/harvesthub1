@@ -37,9 +37,9 @@ export function VerificationStatusCard({ status, farmName, reviewerNotes, submit
   const submittedLabel = submittedAt ? new Date(submittedAt).toLocaleDateString() : null;
 
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, { backgroundColor: `${tone.color}14` }]}>
       <View style={styles.headerRow}>
-        <View style={[styles.iconWrap, { backgroundColor: `${tone.color}1A` }]}>
+        <View style={styles.iconWrap}>
           <MaterialIcons name={tone.icon} size={20} color={tone.color} />
         </View>
         <Text style={styles.title}>{tone.title}</Text>
@@ -75,29 +75,12 @@ export function VerificationStatusCard({ status, farmName, reviewerNotes, submit
 }
 
 const styles = StyleSheet.create({
-  card: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    marginBottom: spacing.md,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
-  },
+  card: { borderRadius: radius.lg, padding: spacing.md, marginBottom: spacing.md },
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.sm },
-  iconWrap: { width: 36, height: 36, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
+  iconWrap: { width: 36, height: 36, borderRadius: radius.md, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center' },
   title: { flex: 1, fontFamily: fonts.headline, fontSize: 18, color: colors.text },
   body: { fontSize: 13.5, lineHeight: 20, color: colors.textMuted },
-  notesBox: {
-    backgroundColor: colors.background,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.md,
-    marginTop: spacing.md,
-  },
+  notesBox: { backgroundColor: colors.white, borderRadius: radius.md, padding: spacing.md, marginTop: spacing.md },
   notesLabel: { fontSize: 11, fontWeight: '700', color: colors.text, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 },
   notesText: { fontSize: 13.5, lineHeight: 20, color: colors.text },
   button: {

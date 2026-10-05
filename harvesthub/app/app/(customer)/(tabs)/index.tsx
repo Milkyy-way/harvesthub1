@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
-import { colors } from '../../../constants/theme';
+import { colors, spacing, fonts } from '../../../constants/theme';
 import { useAuth } from '../../../contexts/AuthContext';
 import { apiClient } from '../../../lib/apiClient';
 import { useDebouncedValue } from '../../../hooks/useDebouncedValue';
@@ -13,6 +13,7 @@ import { FarmerSpotlightRail } from '../../../components/customer/FarmerSpotligh
 import { HarvestPicksRail } from '../../../components/customer/HarvestPicksRail';
 import { CategoryRail } from '../../../components/customer/CategoryRail';
 import { FarmerFeedList } from '../../../components/customer/FarmerFeedList';
+import { SectionTitle } from '../../../components/customer/SectionTitle';
 import type {
   Category,
   CartSummary,
@@ -134,20 +135,40 @@ export default function CustomerHome() {
   };
 
   const trimmedSearch = debouncedSearch.trim();
+  const selectedCategoryName = categories.find((c) => c.slug === selectedCategory)?.name ?? selectedCategory;
+  // A category or search narrows Home down to just the matching farms — the
+  // browse sections (savings, spotlights, harvest) step aside so the results
+  // sit right under the search.
+  const filtering = Boolean(selectedCategory || trimmedSearch);
+  const city = customerProfile?.address_city;
+
   const emptyMessage = error
     ? error
     : selectedCategory
-      ? `No farms currently carry ${selectedCategory} near you.`
+      ? `No farms currently carry ${selectedCategoryName?.toLowerCase()} near you.`
       : trimmedSearch
         ? `No results for "${trimmedSearch}".`
         : 'No farms nearby yet.';
 
+  const listTitle = selectedCategory
+    ? `Farms with ${selectedCategoryName?.toLowerCase()}`
+    : trimmedSearch
+      ? `Results for “${trimmedSearch}”`
+      : total
+        ? `${total} farm${total === 1 ? '' : 's'} near you`
+        : 'Farms near you';
+
+  const openFarm = (id: string) => router.push({ pathname: '/(customer)/farmer/[id]', params: { id } });
+  const clearFilters = () => {
+    setSelectedCategory(null);
+    setSearchText('');
+  };
+
   return (
     <View style={styles.container}>
-      <StatusBar style="light" />
+      <StatusBar style="dark" />
       <Header
-        addressCity={customerProfile?.address_city ?? null}
-        nearbyFarmCount={total || null}
+        addressCity={city ?? null}
         searchValue={searchText}
         onSearchChange={setSearchText}
         cartItemCount={cartItemCount}
@@ -160,17 +181,30 @@ export default function CustomerHome() {
         refreshing={refreshing}
         onRefresh={handleRefresh}
         onEndReached={handleEndReached}
-        onPressFarmer={(id) => router.push({ pathname: '/(customer)/farmer/[id]', params: { id } })}
+        onPressFarmer={openFarm}
         emptyMessage={emptyMessage}
         header={
           <View>
-            {savingsAmount != null && savingsAmount > 0 ? <SavingsTicker amount={savingsAmount} /> : null}
-            <FarmerSpotlightRail
-              items={spotlight}
-              onPressFarmer={(id) => router.push({ pathname: '/(customer)/farmer/[id]', params: { id } })}
+            {!filtering ? (
+              <View style={styles.greeting}>
+                <Text style={styles.headline}>What&apos;s fresh {city ? `near ${city}` : 'near you'}</Text>
+                <Text style={styles.subheadline}>Straight from local farms, picked this week.</Text>
+              </View>
+            ) : null}
+            <CategoryRail
+              variant="icons"
+              categories={categories}
+              selectedSlug={selectedCategory}
+              onSelect={setSelectedCategory}
             />
-            <HarvestPicksRail items={harvestPicks} />
-            <CategoryRail categories={categories} selectedSlug={selectedCategory} onSelect={setSelectedCategory} />
+            {!filtering ? (
+              <>
+                {savingsAmount != null && savingsAmount > 0 ? <SavingsTicker amount={savingsAmount} /> : null}
+                <FarmerSpotlightRail items={spotlight} onPressFarmer={openFarm} />
+                <HarvestPicksRail items={harvestPicks} />
+              </>
+            ) : null}
+            <SectionTitle title={listTitle} actionLabel={filtering ? 'Clear' : undefined} onAction={clearFilters} />
           </View>
         }
       />
@@ -180,4 +214,7 @@ export default function CustomerHome() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
+  greeting: { paddingHorizontal: spacing.lg, paddingTop: spacing.xs, paddingBottom: spacing.md },
+  headline: { fontFamily: fonts.headline, fontSize: 27, lineHeight: 33, color: colors.text },
+  subheadline: { fontSize: 13.5, color: colors.textMuted, marginTop: 2 },
 });

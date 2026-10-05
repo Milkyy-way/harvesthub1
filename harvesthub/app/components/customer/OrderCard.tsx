@@ -35,7 +35,7 @@ export function OrderCard({ order, onPress, showRebook, onRebook, rebooking }: P
         />
       ) : (
         <View style={[styles.photo, styles.photoFallback]}>
-          <MaterialIcons name="storefront" size={22} color={colors.textMuted} />
+          <MaterialIcons name="storefront" size={22} color={colors.primaryMid} />
         </View>
       )}
 
@@ -79,7 +79,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
   },
   pressed: { opacity: 0.7 },
-  photo: { width: PHOTO_SIZE, height: PHOTO_SIZE, borderRadius: radius.md, backgroundColor: colors.surface },
+  photo: { width: PHOTO_SIZE, height: PHOTO_SIZE, borderRadius: radius.md, backgroundColor: colors.tint },
   photoFallback: { alignItems: 'center', justifyContent: 'center' },
   info: { flex: 1, minWidth: 0 },
   farmNames: { fontFamily: fonts.headline, fontSize: 15, color: colors.text },

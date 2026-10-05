@@ -11,6 +11,8 @@ import { DIETARY_PREFERENCE_OPTIONS, PRODUCE_INTEREST_OPTIONS } from '../../../l
 import { HeroShell } from '../../../components/customer/HeroShell';
 import { StatTile } from '../../../components/customer/StatTile';
 import { SettingsRow } from '../../../components/customer/SettingsRow';
+import { Section } from '../../../components/Section';
+import { InfoRow, ChipRow } from '../../../components/InfoRow';
 import type { DashboardSummary } from '../../../types/dashboard';
 
 export default function CustomerAccount() {
@@ -93,39 +95,6 @@ export default function CustomerAccount() {
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>{title}</Text>
-      {children}
-    </View>
-  );
-}
-
-function InfoRow({ icon, label, value }: { icon: React.ComponentProps<typeof MaterialIcons>['name']; label: string; value: string }) {
-  return (
-    <View style={styles.infoRow}>
-      <MaterialIcons name={icon} size={18} color={colors.textMuted} />
-      <View style={styles.infoTextWrap}>
-        <Text style={styles.infoLabel}>{label}</Text>
-        <Text style={styles.infoValue}>{value}</Text>
-      </View>
-    </View>
-  );
-}
-
-function ChipRow({ labels }: { labels: string[] }) {
-  return (
-    <View style={styles.chipRow}>
-      {labels.map((label) => (
-        <View key={label} style={styles.chip}>
-          <Text style={styles.chipText}>{label}</Text>
-        </View>
-      ))}
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   content: { paddingBottom: spacing.xl },
@@ -143,33 +112,7 @@ const styles = StyleSheet.create({
   name: { fontFamily: fonts.headlineBold, fontSize: 24, color: colors.text },
   email: { fontSize: 13, color: colors.textMuted, marginTop: 2 },
   statsRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.lg },
-  section: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    marginBottom: spacing.md,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  sectionTitle: { fontSize: 13, fontWeight: '700', color: colors.text, marginBottom: spacing.sm },
   emptyText: { fontSize: 13, color: colors.textMuted },
-  infoRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, paddingVertical: 4 },
-  infoTextWrap: { flex: 1 },
-  infoLabel: { fontSize: 11, color: colors.textMuted },
-  infoValue: { fontSize: 14, color: colors.text, marginTop: 1 },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
-  chip: {
-    backgroundColor: colors.background,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.pill,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-  },
-  chipText: { fontSize: 12, color: colors.text, fontWeight: '500' },
   logoutButton: {
     flexDirection: 'row',
     alignItems: 'center',

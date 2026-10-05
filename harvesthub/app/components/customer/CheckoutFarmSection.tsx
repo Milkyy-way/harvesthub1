@@ -1,6 +1,6 @@
 import { View, Text, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { colors, spacing, radius } from '../../constants/theme';
+import { colors, spacing, radius, fonts } from '../../constants/theme';
 import { openDirections } from '../../lib/maps';
 import { TextField } from '../TextField';
 import type { CheckoutGroup, DeliveryAddressDraft } from '../../types/checkout';
@@ -122,31 +122,26 @@ function BreakdownLine({ label, value, bold, highlight }: { label: string; value
 }
 
 const styles = StyleSheet.create({
+  // One farm's order straight on the page background, a line between farms.
   container: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
     marginHorizontal: spacing.lg,
-    marginBottom: spacing.md,
-    padding: spacing.md,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
+    paddingVertical: spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
-  farmName: { fontSize: 16, fontWeight: '700', color: colors.text, marginBottom: spacing.xs },
+  farmName: { fontFamily: fonts.headline, fontSize: 19, color: colors.text, marginBottom: spacing.xs },
   fulfillmentRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: spacing.sm },
-  fulfillmentText: { flex: 1, fontSize: 12, color: colors.textMuted },
-  directionsLink: { fontSize: 12, fontWeight: '700', color: colors.primary },
-  items: { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: spacing.xs },
-  itemRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },
+  fulfillmentText: { flex: 1, fontSize: 12.5, color: colors.textMuted },
+  directionsLink: { fontSize: 12.5, fontWeight: '700', color: colors.primary },
+  items: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, paddingTop: spacing.xs },
+  itemRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 5 },
   itemName: { flex: 1, fontSize: 13, color: colors.text, marginRight: spacing.sm },
   itemTotal: { fontSize: 13, fontWeight: '600', color: colors.text },
   promoRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.xs, marginTop: spacing.sm },
   promoInput: { flex: 1 },
   promoButton: {
     backgroundColor: colors.primary,
-    borderRadius: radius.sm,
+    borderRadius: radius.pill,
     paddingHorizontal: spacing.md,
     height: 48,
     alignItems: 'center',

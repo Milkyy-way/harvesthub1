@@ -10,6 +10,7 @@ from app.orders.models import Order, StoreOrder, StoreOrderItem, OrderCancellati
 from app.payments.models import Payment, Refund, PaymentCancellation
 from app.payments import stripe_client
 from app.products.models import Product
+from app.categories.models import Category
 from app.cart.models import CartItem
 from app.farmers.models import FarmerProfile
 from app.checkout.service import build_checkout_preview
@@ -752,6 +753,7 @@ def get_dashboard_summary(db: Session, customer_id: str, range_key: str | None =
         "activity_last_7_days": _empty_activity_buckets(),
         "favorite_farm": None,
         "most_ordered_product": None,
+        "spending_by_category": [],
     }
     if not orders:
         return empty
@@ -837,7 +839,54 @@ def get_dashboard_summary(db: Session, customer_id: str, range_key: str | None =
         "activity_last_7_days": buckets,
         "favorite_farm": favorite_farm,
         "most_ordered_product": most_ordered_product,
+        "spending_by_category": _spending_by_category(db, kept_store_orders, all_kept_store_orders),
     }
+
+
+# The dashboard donut ("What you buy") gives fixed colors to the customer's
+# top categories and groups the rest as "Other" — this many slots, matching
+# the chart palette in the app (constants/theme.ts chartColors).
+_CATEGORY_COLOR_SLOTS = 3
+
+
+def _category_item_totals(db: Session, store_order_ids) -> dict:
+    """slug -> (name, item total) over those store orders' lines. Item value
+    only (fees/tax excluded). A line whose product was since deleted has no
+    category any more and counts as 'other'."""
+    if not store_order_ids:
+        return {}
+    rows = (
+        db.query(Category.slug, Category.name, func.sum(StoreOrderItem.line_total))
+        .select_from(StoreOrderItem)
+        .outerjoin(Product, Product.id == StoreOrderItem.product_id)
+        .outerjoin(Category, Category.id == Product.category_id)
+        .filter(StoreOrderItem.store_order_id.in_(list(store_order_ids)))
+        .group_by(Category.slug, Category.name)
+        .all()
+    )
+    totals: dict = {}
+    for slug, name, amount in rows:
+        key = slug or "other"
+        prev_name, prev_amount = totals.get(key, (name or "Other", 0.0))
+        totals[key] = (prev_name, prev_amount + float(amount or 0))
+    return totals
+
+
+def _spending_by_category(db: Session, kept_in_range: list, kept_all_time: list) -> list[dict]:
+    """In-range item totals per category, largest first. color_slot pins each
+    of the customer's ALL-TIME top categories to a fixed chart color, so
+    switching the date range never repaints a category (color follows the
+    category, not its rank in the current view); null = grouped as "Other"."""
+    all_time = _category_item_totals(db, [so.id for so in kept_all_time])
+    top = [slug for slug, _ in sorted(all_time.items(), key=lambda kv: kv[1][1], reverse=True) if slug != "other"]
+    slot_by_slug = {slug: i for i, slug in enumerate(top[:_CATEGORY_COLOR_SLOTS])}
+
+    in_range = _category_item_totals(db, [so.id for so in kept_in_range])
+    return [
+        {"slug": slug, "name": name, "amount": round(amount, 2), "color_slot": slot_by_slug.get(slug)}
+        for slug, (name, amount) in sorted(in_range.items(), key=lambda kv: kv[1][1], reverse=True)
+        if amount > 0
+    ]
 
 
 def _empty_activity_buckets() -> list[dict]:
